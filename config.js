@@ -4,6 +4,6 @@
 //  anon key는 "공개해도 되는" 키입니다 (실제 보안은 데이터베이스의 RLS 정책이 담당합니다).
 // ============================================================
 const SUPABASE_CONFIG = {
-  url: 'https://YOUR-PROJECT-REF.supabase.co',
-  anonKey: 'YOUR-ANON-PUBLIC-KEY',
+  url: 'https://qjhtqbcipjfphdqlwkoq.supabase.co',
+  anonKey: 'sb_publishable_vKqCBPHQlTHMV1GvQm8ipw_-9Oni192',
 };
