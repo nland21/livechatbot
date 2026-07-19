@@ -115,9 +115,40 @@ let scheduledMessages = [];
 let keywordRules = [];
 let aiSkills = [];
 let liveSchedule = [];
+let broadcastSettings = { scheduled_interval_sec: 300, scheduled_mode: 'sequential' };
 
 async function loadAll() {
-  await Promise.all([loadScheduled(), loadKeywords(), loadSkills(), loadLiveSchedule()]);
+  await Promise.all([loadBroadcastSettings(), loadScheduled(), loadKeywords(), loadSkills(), loadLiveSchedule()]);
+}
+
+async function loadBroadcastSettings() {
+  const { data, error } = await supabaseClient
+    .from('broadcast_settings').select('*').eq('id', 'default').maybeSingle();
+  if (error) { showSaveStatus('게시 설정 불러오기 실패: ' + error.message, 'err'); return; }
+  if (data) broadcastSettings = data;
+  renderBroadcastSettings();
+}
+
+function renderBroadcastSettings() {
+  const intervalInput = document.getElementById('scheduledIntervalSec');
+  const modeSelect = document.getElementById('scheduledMode');
+  if (!intervalInput || !modeSelect) return;
+  intervalInput.value = broadcastSettings.scheduled_interval_sec;
+  modeSelect.value = broadcastSettings.scheduled_mode;
+}
+
+async function saveBroadcastSettings() {
+  const intervalRaw = Number(document.getElementById('scheduledIntervalSec').value);
+  const scheduled_interval_sec = Math.max(5, Number.isFinite(intervalRaw) ? intervalRaw : 300);
+  const scheduled_mode = document.getElementById('scheduledMode').value;
+
+  const { error } = await supabaseClient
+    .from('broadcast_settings')
+    .upsert({ id: 'default', scheduled_interval_sec, scheduled_mode });
+
+  if (error) { showSaveStatus('게시 설정 저장 실패: ' + error.message, 'err'); return; }
+  showSaveStatus('게시 설정 저장됨 ✓', 'ok');
+  await loadBroadcastSettings();
 }
 
 async function loadScheduled() {
@@ -660,6 +691,7 @@ function bindEvents() {
     });
   });
 
+  document.getElementById('saveBroadcastSettingsBtn').addEventListener('click', saveBroadcastSettings);
   document.getElementById('addScheduledBtn').addEventListener('click', addScheduledMessage);
   document.getElementById('addKeywordBtn').addEventListener('click', addKeywordRule);
   document.getElementById('addLiveScheduleBtn').addEventListener('click', addLiveSchedule);
