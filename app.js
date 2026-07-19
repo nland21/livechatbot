@@ -102,11 +102,16 @@ async function afterLogin(session) {
   setInterval(refreshDeviceStatus, 30000); // 30초마다 PC 상태를 다시 확인합니다.
 }
 
-// 이미 로그인된 세션이 있으면(새로고침 시) 자동으로 이어서 로그인 처리합니다.
+// 이미 로그인된 세션이 있으면(새로고침 시, 또는 이메일 인증 링크로 막 돌아온 경우)
+// 자동으로 이어서 로그인 처리합니다.
 (async function initSession() {
   const { data } = await supabaseClient.auth.getSession();
   if (data.session) {
     await afterLogin(data.session);
+    // 이메일 인증 링크를 눌러 들어온 경우 주소창에 토큰 조각이 남는데, 보기 안 좋으니 정리합니다.
+    if (window.location.hash.includes('access_token')) {
+      window.history.replaceState(null, '', window.location.pathname);
+    }
   }
 })();
 
@@ -445,7 +450,8 @@ function renderLiveScheduleList() {
     const li = document.createElement('li');
     const dt = new Date(entry.datetime);
     const dtLabel = Number.isNaN(dt.getTime()) ? entry.datetime : formatDatetime24h(dt);
-    li.innerHTML = `<span class="content"><b style="color:var(--brand-dark);"></b><br/><span class="bid"></span></span><div class="li-actions"><button class="btn-danger-outline">삭제</button></div>`;
+    const isLive = liveBroadcastIds.has(String(entry.broadcast_id));
+    li.innerHTML = `<span class="content"><b style="color:var(--brand-dark);"></b> <span class="live-badge" style="display:${isLive ? 'inline-block' : 'none'};">LIVE</span><br/><span class="bid"></span></span><div class="li-actions"><button class="btn-danger-outline">삭제</button></div>`;
     li.querySelector('b').textContent = dtLabel;
     li.querySelector('.bid').textContent = `라이브 아이디: ${entry.broadcast_id}`;
     li.querySelector('button').addEventListener('click', async () => {
@@ -490,14 +496,33 @@ async function addLiveSchedule() {
 let accounts = [];
 
 // ------------------------------- 로컬 PC 상태 표시 -------------------------------
+let liveBroadcastIds = new Set(); // 현재 어떤 PC든 열어두고 있는 라이브 아이디 (LIVE 뱃지 판단용)
+const LIVE_BROADCAST_FRESHNESS_MS = 2 * 60 * 1000; // 2분 넘게 갱신 안 된 보고는 오래된 것으로 보고 무시합니다.
+
 async function refreshDeviceStatus() {
   const pill = document.getElementById('deviceStatusPill');
-  if (!pill) return;
 
   const { data, error } = await supabaseClient
     .from('device_status')
     .select('*')
     .order('last_seen_at', { ascending: false });
+
+  // "지금 라이브 중"으로 볼 수 있는 아이디 집합을 갱신합니다. (신선도 2분 이내인 것만 인정)
+  const now = Date.now();
+  const nextLiveBroadcastIds = new Set();
+  if (!error && data) {
+    data.forEach((d) => {
+      if (!d.current_broadcast_id) return;
+      if (now - new Date(d.last_seen_at).getTime() > LIVE_BROADCAST_FRESHNESS_MS) return;
+      nextLiveBroadcastIds.add(String(d.current_broadcast_id));
+    });
+  }
+  const changed = nextLiveBroadcastIds.size !== liveBroadcastIds.size ||
+    [...nextLiveBroadcastIds].some((id) => !liveBroadcastIds.has(id));
+  liveBroadcastIds = nextLiveBroadcastIds;
+  if (changed) renderLiveScheduleList();
+
+  if (!pill) return;
 
   if (error || !data || data.length === 0) {
     pill.className = 'device-status-pill none';
@@ -645,7 +670,17 @@ async function createAccount() {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
-  const { data, error } = await tempClient.auth.signUp({ email, password });
+  const { data, error } = await tempClient.auth.signUp({
+    email,
+    password,
+    options: {
+      // 이메일 인증 링크를 눌렀을 때 돌아올 주소를 "지금 이 관리자 웹페이지"로 명시합니다.
+      // (지정하지 않으면 Supabase 대시보드의 기본 Site URL로 가는데, 보통 실제 배포 주소와
+      // 달라서 "페이지를 찾을 수 없음" 오류가 납니다. 이 값과 별개로, Supabase 대시보드
+      // Authentication > URL Configuration에도 이 주소를 등록해두셔야 합니다.)
+      emailRedirectTo: window.location.origin + window.location.pathname,
+    },
+  });
 
   btn.disabled = false;
   btn.textContent = '계정 만들기';
