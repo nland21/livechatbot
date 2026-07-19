@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>노트북랜드21 — 라이브 채팅 관리자</title>
+<style>
+  :root {
+    --brand: #03c75a;
+    --brand-dark: #02a94d;
+    --brand-soft: #e6f9ef;
+    --bg: #f5f6f8;
+    --panel: #ffffff;
+    --border: #e3e5e8;
+    --text: #1f2226;
+    --sub: #767c85;
+    --danger: #e0473f;
+    --dark: #111827;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; min-height: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, "Malgun Gothic", "Pretendard", sans-serif;
+    background: var(--bg); color: var(--text);
+  }
+
+  /* ---------- 로그인 화면 ---------- */
+  #loginScreen {
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    padding: 20px;
+  }
+  .login-card {
+    width: 100%; max-width: 360px; background: var(--panel);
+    border: 1px solid var(--border); border-radius: 14px;
+    padding: 32px 28px; box-shadow: 0 8px 24px rgba(0,0,0,0.06);
+  }
+  .login-card .logo-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--brand); display: inline-block; margin-right: 6px; box-shadow: 0 0 0 3px rgba(3,199,90,0.2); }
+  .login-card h1 { font-size: 16px; margin: 14px 0 4px; }
+  .login-card p { font-size: 12px; color: var(--sub); margin: 0 0 22px; }
+  .login-card label { font-size: 11.5px; font-weight: 700; color: var(--sub); display: block; margin: 12px 0 5px; }
+  .login-card input {
+    width: 100%; border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 11px; font-size: 13px; font-family: inherit;
+  }
+  .login-card button {
+    width: 100%; margin-top: 18px; padding: 11px; border: none; border-radius: 8px;
+    background: var(--brand); color: #fff; font-size: 13.5px; font-weight: 700; cursor: pointer;
+  }
+  .login-card button:hover { background: var(--brand-dark); }
+  .login-card button:disabled { background: #9aa0a8; cursor: not-allowed; }
+  .login-error {
+    margin-top: 12px; font-size: 12px; color: var(--danger);
+    background: #fdecea; border: 1px solid #f3c8c5; border-radius: 8px; padding: 8px 10px;
+    display: none;
+  }
+
+  /* ---------- 앱 화면 ---------- */
+  #appScreen { display: none; }
+  .app-shell { display: flex; min-height: 100vh; }
+
+  .sidebar {
+    width: 232px; flex-shrink: 0; background: var(--dark); color: #fff;
+    display: flex; flex-direction: column; padding: 18px 12px;
+  }
+  .brand { padding: 6px 8px 18px; }
+  .brand .logo-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .brand .logo-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--brand); box-shadow: 0 0 0 3px rgba(3,199,90,0.25); }
+  .brand h1 { font-size: 13.5px; margin: 0; font-weight: 700; line-height: 1.4; }
+  .brand p { font-size: 11px; color: #9aa2ad; margin: 4px 0 0; word-break: break-all; }
+
+  .tabs { display: flex; flex-direction: column; gap: 2px; margin-top: 8px; }
+  .nav-group-title {
+    font-size: 10px; font-weight: 800; color: #7d8590;
+    text-transform: uppercase; letter-spacing: 0.5px;
+    padding: 14px 10px 6px;
+  }
+  .nav-group-title:first-child { padding-top: 4px; }
+  .tab-btn {
+    display: flex; align-items: center; gap: 9px; text-align: left;
+    background: transparent; border: none; color: #c3c9d1;
+    font-size: 12.5px; font-weight: 600; padding: 10px; border-radius: 8px;
+    cursor: pointer; font-family: inherit;
+  }
+  .tab-btn:hover { background: rgba(255,255,255,0.06); color: #fff; }
+  .tab-btn.active { background: var(--brand); color: #fff; }
+  .tab-btn .icon { font-size: 14px; width: 18px; text-align: center; }
+
+  .sidebar-footer { margin-top: auto; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.08); }
+  .sidebar-footer .who { font-size: 11px; color: #c3c9d1; margin-bottom: 8px; }
+  .sidebar-footer button {
+    width: 100%; padding: 8px; border-radius: 7px; border: 1px solid rgba(255,255,255,0.15);
+    background: transparent; color: #c3c9d1; font-size: 11.5px; cursor: pointer; font-family: inherit;
+  }
+  .sidebar-footer button:hover { background: rgba(255,255,255,0.08); color: #fff; }
+
+  .main { flex: 1; min-width: 0; }
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 28px; background: var(--panel); border-bottom: 1px solid var(--border);
+  }
+  .topbar .save-status { font-size: 11.5px; color: var(--sub); }
+  .topbar .save-status.ok { color: var(--brand-dark); }
+  .topbar .save-status.err { color: var(--danger); }
+
+  .content { padding: 26px 32px 60px; max-width: 780px; }
+  .content h2 { font-size: 17px; margin: 0 0 4px; display: flex; align-items: center; gap: 10px; }
+  .content .page-desc { font-size: 12.5px; color: var(--sub); margin: 0 0 20px; line-height: 1.6; }
+
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; margin-bottom: 16px; }
+  .card h3 { font-size: 13.5px; margin: 0 0 10px; display: flex; align-items: center; justify-content: space-between; }
+  .hint { font-size: 11.5px; color: var(--sub); line-height: 1.6; }
+  .hint b, .card .hint b { color: var(--text); }
+
+  .btn { border: none; border-radius: 7px; padding: 8px 14px; font-size: 12.5px; font-weight: 700; cursor: pointer; font-family: inherit; }
+  .btn-primary { background: var(--brand); color: #fff; }
+  .btn-primary:hover { background: var(--brand-dark); }
+  .btn-outline { background: #fff; border: 1px solid var(--border); color: var(--text); }
+  .btn-outline:hover { background: #f1f2f4; }
+  .btn-danger-outline { background: #fff; border: 1px solid #f3c8c5; color: var(--danger); font-size: 11px; padding: 5px 9px; border-radius: 7px; cursor: pointer; font-family: inherit; font-weight: 700; }
+  .btn-block { width: 100%; margin-top: 6px; }
+  .btn-sm { padding: 5px 9px; font-size: 11px; }
+
+  .badge {
+    font-size: 10px; font-weight: 700; color: var(--brand-dark);
+    background: var(--brand-soft); padding: 2px 8px; border-radius: 8px;
+    margin-left: 6px; vertical-align: middle;
+  }
+
+  label { font-size: 11.5px; font-weight: 700; color: var(--sub); display: block; margin-bottom: 5px; }
+  input[type="text"], input[type="date"], select, textarea {
+    width: 100%; border: 1px solid var(--border); border-radius: 7px;
+    padding: 8px 9px; font-size: 12.5px; font-family: inherit; background: #fff; color: var(--text);
+  }
+  textarea { resize: vertical; min-height: 70px; }
+  .field { margin-bottom: 12px; }
+  .row-2 { display: flex; gap: 10px; }
+  .row-2 > div { flex: 1; }
+
+  .switch { position: relative; display: inline-block; width: 36px; height: 20px; flex-shrink: 0; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .switch .slider { position: absolute; inset: 0; background: #d1d5db; border-radius: 20px; transition: .15s; cursor: pointer; }
+  .switch .slider:before { content: ""; position: absolute; height: 14px; width: 14px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: .15s; }
+  .switch input:checked + .slider { background: var(--brand); }
+  .switch input:checked + .slider:before { transform: translateX(16px); }
+
+  ul.item-list { list-style: none; margin: 0; padding: 0; }
+  ul.item-list li { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding: 10px 12px; background: #f7f8fa; border-radius: 8px; margin-bottom: 8px; font-size: 12px; }
+  ul.item-list li .content { flex: 1; line-height: 1.6; word-break: break-all; }
+  ul.item-list li .priority-badge { display: inline-block; font-size: 9.5px; font-weight: 700; color: #fff; background: #4b5563; padding: 1px 7px; border-radius: 8px; margin-bottom: 3px; }
+  .li-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+  .add-form { border-top: 1px dashed var(--border); margin-top: 14px; padding-top: 14px; }
+
+  .skill-scope-badge { font-size: 9.5px; font-weight: 700; padding: 1px 7px; border-radius: 8px; }
+  .skill-scope-badge.common { background: #e6f0ff; color: #1a56db; }
+  .skill-scope-badge.broadcast { background: #fdeee0; color: #b5540b; }
+  .chip { background: #f1f2f4; border: 1px solid var(--border); font-size: 11px; padding: 3px 9px; border-radius: 14px; color: var(--text); margin-right: 4px; }
+
+  .time-select-row { display: flex; align-items: center; gap: 4px; }
+  .time-select-row select { width: auto; flex: 1; padding: 8px 6px; }
+  .time-select-row span { font-size: 11.5px; color: var(--sub); flex-shrink: 0; }
+
+  .empty-hint { font-size: 12px; color: var(--sub); text-align: center; padding: 10px; }
+
+  .device-status-pill {
+    font-size: 11px; font-weight: 700; padding: 5px 12px; border-radius: 20px; white-space: nowrap;
+  }
+  .device-status-pill.ok { background: var(--brand-soft); color: var(--brand-dark); }
+  .device-status-pill.warn { background: #fdecea; color: var(--danger); }
+  .device-status-pill.none { background: #f1f2f4; color: var(--sub); }
+</style>
+</head>
+<body>
+
+  <!-- ============ 로그인 화면 ============ -->
+  <div id="loginScreen">
+    <div class="login-card">
+      <div><span class="logo-dot"></span></div>
+      <h1>노트북랜드21 라이브 채팅 관리자</h1>
+      <p>관리자 계정으로 로그인하세요.</p>
+      <form id="loginForm">
+        <label>이메일</label>
+        <input type="text" id="loginEmail" autocomplete="username" required />
+        <label>비밀번호</label>
+        <input type="password" id="loginPassword" autocomplete="current-password" required />
+        <button type="submit" id="loginSubmitBtn">로그인</button>
+      </form>
+      <div class="login-error" id="loginError"></div>
+    </div>
+  </div>
+
+  <!-- ============ 관리자 앱 화면 ============ -->
+  <div id="appScreen">
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="logo-row"><span class="logo-dot"></span><h1>노트북랜드21<br/>라이브 채팅 관리자</h1></div>
+          <p id="projectUrlLabel"></p>
+        </div>
+        <nav class="tabs">
+          <div class="nav-group-title">☁️ 관리자 메뉴</div>
+          <button class="tab-btn active" data-tab="scheduled"><span class="icon">📝</span> 예약 문구</button>
+          <button class="tab-btn" data-tab="keyword"><span class="icon">💬</span> 키워드 자동답변</button>
+          <button class="tab-btn" data-tab="skills"><span class="icon">🧩</span> 스킬 관리</button>
+          <button class="tab-btn" data-tab="nextlive"><span class="icon">🔁</span> 다음 라이브 이동</button>
+
+          <div class="nav-group-title" id="masterGroupTitle" style="display:none;">🔐 마스터관리자 전용</div>
+          <button class="tab-btn" data-tab="accounts" id="accountsTabBtn" style="display:none;"><span class="icon">👤</span> 계정 관리</button>
+        </nav>
+        <div class="sidebar-footer">
+          <div class="who" id="whoAmI">로그인 확인 중...</div>
+          <button id="logoutBtn">로그아웃</button>
+        </div>
+      </aside>
+
+      <div class="main">
+        <header class="topbar">
+          <div>이 페이지에서 저장하면 사무실 PC의 확장 프로그램에 최대 1분 안에 자동 반영됩니다.</div>
+          <div style="display:flex; align-items:center; gap:10px;">
+            <span class="device-status-pill" id="deviceStatusPill">PC 상태 확인 중...</span>
+            <div class="save-status" id="saveStatus"></div>
+          </div>
+        </header>
+
+        <main class="content">
+
+          <!-- 예약 문구 -->
+          <section id="tab-scheduled" class="tab-panel active">
+            <h2>예약 문구 자동 게시</h2>
+            <p class="page-desc">등록한 문구를 확장 프로그램이 정해진 간격으로 반복 게시합니다.</p>
+            <div class="card">
+              <ul class="item-list" id="scheduledList"></ul>
+              <div class="add-form">
+                <label>새 예약 문구</label>
+                <textarea id="newScheduledText" placeholder="예: 💳 MS오피스 특가! 라이브 중 구매시 99,000원!"></textarea>
+                <button class="btn btn-primary btn-block" id="addScheduledBtn">+ 예약 문구 추가</button>
+              </div>
+            </div>
+          </section>
+
+          <!-- 키워드 자동답변 -->
+          <section id="tab-keyword" class="tab-panel">
+            <h2>키워드 자동 답변</h2>
+            <p class="page-desc">키워드가 많을수록(쉼표로 구분) 더 구체적인 규칙으로 인식되어 먼저 검사됩니다.</p>
+            <div class="card">
+              <ul class="item-list" id="keywordList"></ul>
+              <div class="add-form">
+                <label>감지할 키워드 (쉼표로 여러 개)</label>
+                <input type="text" id="newKeyword" placeholder="예: 배송, 회사" />
+                <div class="field" style="margin-top:8px;">
+                  <label>매칭 방식</label>
+                  <select id="newKeywordMatchType">
+                    <option value="all">모두 포함 (AND)</option>
+                    <option value="any">하나라도 포함 (OR)</option>
+                  </select>
+                </div>
+                <label>자동 답변 내용</label>
+                <textarea id="newKeywordReply" placeholder="예: 🚚 CJ대한통운을 통해 배송되고 있어요!"></textarea>
+                <button class="btn btn-primary btn-block" id="addKeywordBtn">+ 키워드 규칙 추가</button>
+              </div>
+            </div>
+          </section>
+
+          <!-- 스킬 관리 -->
+          <section id="tab-skills" class="tab-panel">
+            <h2>스킬 관리</h2>
+            <p class="page-desc">AI 자동 답변이 참고할 주제별 지식입니다. 트리거 키워드를 비워두면 항상 포함되는 기본 스킬이 됩니다.</p>
+            <div id="skillGroups"></div>
+            <div class="card add-form" style="margin-top:18px;border-top:none;padding-top:18px;">
+              <h3 id="skillFormTitle">+ 새 스킬 추가</h3>
+              <div class="row-2">
+                <div class="field"><label>스킬 제목</label><input type="text" id="skillTitle" placeholder="예: 무이자 할부 안내" /></div>
+                <div class="field"><label>적용 범위</label>
+                  <select id="skillScope">
+                    <option value="common">공통 (모든 방송)</option>
+                    <option value="broadcast">특정 방송 전용</option>
+                  </select>
+                </div>
+              </div>
+              <div class="field" id="skillBroadcastIdField" style="display:none;">
+                <label>적용할 라이브 아이디</label>
+                <input type="text" id="skillBroadcastId" placeholder="예: 1947700" />
+              </div>
+              <div class="row-2">
+                <div class="field"><label>트리거 키워드 (쉼표로 구분, 비우면 항상 포함)</label><input type="text" id="skillKeywords" placeholder="예: 할부, 무이자" /></div>
+                <div class="field"><label>매칭 방식</label>
+                  <select id="skillMatchType">
+                    <option value="any">하나라도 포함 (OR)</option>
+                    <option value="all">모두 포함 (AND)</option>
+                  </select>
+                </div>
+              </div>
+              <div class="field"><label>스킬 내용</label><textarea id="skillContent" style="min-height:90px;"></textarea></div>
+              <div style="display:flex; gap:8px;">
+                <button class="btn btn-primary" id="saveSkillBtn" style="flex:1;">스킬 추가</button>
+                <button class="btn btn-outline" id="cancelSkillEditBtn" style="display:none;">수정 취소</button>
+              </div>
+            </div>
+          </section>
+
+          <!-- 다음 라이브 이동 -->
+          <section id="tab-nextlive" class="tab-panel">
+            <h2>다음 라이브 예약 시간표</h2>
+            <p class="page-desc">방식 B(예약 시간표)로 설정된 확장 프로그램이 이 시간표를 그대로 사용합니다.</p>
+            <div class="card">
+              <ul class="item-list" id="liveScheduleList"></ul>
+              <div class="add-form">
+                <div class="field"><label>시작 날짜</label><input type="date" id="newLiveScheduleDate" /></div>
+                <div class="field">
+                  <label>시작 시각 (24시간제)</label>
+                  <div class="time-select-row">
+                    <select id="newLiveScheduleHour"></select><span>시</span>
+                    <select id="newLiveScheduleMinute"></select><span>분</span>
+                  </div>
+                </div>
+                <div class="field"><label>라이브 아이디</label><input type="text" id="newLiveScheduleBroadcastId" placeholder="예: 1973878" /></div>
+                <button class="btn btn-primary btn-block" id="addLiveScheduleBtn">+ 예약 추가</button>
+              </div>
+            </div>
+          </section>
+
+          <!-- 계정 관리 (마스터관리자 전용) -->
+          <section id="tab-accounts" class="tab-panel">
+            <h2>계정 관리</h2>
+            <p class="page-desc">
+              마스터관리자만 볼 수 있는 화면입니다. 새 계정을 만들거나, 역할을 바꾸거나, 계정을 비활성화할 수 있습니다.
+            </p>
+            <div class="card" style="background:#fff7e6;border-color:#f0d999;">
+              <p class="hint" style="margin:0;">
+                <b>역할 안내</b><br/>
+                · 관리자 — 계정 관리만 제외, 웹 콘텐츠 편집 + 로컬 PC(확장 프로그램) 로그인 모두 가능<br/>
+                · 웹관리자 — 웹 콘텐츠 편집만 가능 (로컬 PC 로그인 불가)<br/>
+                · 로컬매니저 — 로컬 PC(확장 프로그램) 동기화 로그인만 가능 (웹 콘텐츠 편집 불가)
+              </p>
+            </div>
+
+            <div class="card">
+              <h3>계정 목록</h3>
+              <ul class="item-list" id="accountList"></ul>
+            </div>
+
+            <div class="card add-form" style="border-top:none;padding-top:18px;">
+              <h3>+ 새 계정 만들기</h3>
+              <div class="row-2">
+                <div class="field"><label>이메일</label><input type="text" id="newAccountEmail" placeholder="예: staff01@nland21.com" autocomplete="off" /></div>
+                <div class="field"><label>닉네임</label><input type="text" id="newAccountNickname" placeholder="예: 김담당" /></div>
+              </div>
+              <div class="row-2">
+                <div class="field"><label>비밀번호</label><input type="text" id="newAccountPassword" placeholder="8자 이상" autocomplete="new-password" /></div>
+                <div class="field"><label>권한</label>
+                  <select id="newAccountRole">
+                    <option value="admin">관리자</option>
+                    <option value="web_admin">웹관리자</option>
+                    <option value="local_manager">로컬매니저</option>
+                  </select>
+                </div>
+              </div>
+              <button class="btn btn-primary btn-block" id="addAccountBtn">계정 만들기</button>
+              <div id="accountCreateResult" class="hint" style="display:none;margin-top:8px;"></div>
+            </div>
+          </section>
+
+        </main>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
