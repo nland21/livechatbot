@@ -100,6 +100,8 @@ async function afterLogin(session) {
 
   await refreshDeviceStatus();
   setInterval(refreshDeviceStatus, 30000); // 30초마다 PC 상태를 다시 확인합니다.
+  // 데이터가 안 바뀌어도 시간은 계속 흐르므로("종료" 판정이 시간 기반), 1분마다 목록을 다시 그립니다.
+  setInterval(renderLiveScheduleList, 60000);
 }
 
 // 이미 로그인된 세션이 있으면(새로고침 시, 또는 이메일 인증 링크로 막 돌아온 경우)
@@ -549,6 +551,8 @@ function formatDatetime24h(dateObj) {
   return `${dateObj.getFullYear()}-${pad(dateObj.getMonth() + 1)}-${pad(dateObj.getDate())} ${pad(dateObj.getHours())}:${pad(dateObj.getMinutes())}`;
 }
 
+const BROADCAST_DURATION_MS = 2 * 60 * 60 * 1000; // 라이브 방송 시간(고정 2시간) — 이 시간이 지나면 "종료"로 표시합니다.
+
 function renderLiveScheduleList() {
   const ul = document.getElementById('liveScheduleList');
   ul.innerHTML = '';
@@ -561,7 +565,9 @@ function renderLiveScheduleList() {
     const dt = new Date(entry.datetime);
     const dtLabel = Number.isNaN(dt.getTime()) ? entry.datetime : formatDatetime24h(dt);
     const isLive = liveBroadcastIds.has(String(entry.broadcast_id));
-    li.innerHTML = `<span class="content"><b style="color:var(--brand-dark);"></b> <span class="live-badge" style="display:${isLive ? 'inline-block' : 'none'};">LIVE</span><br/><span class="bid"></span></span><div class="li-actions"><button class="btn-danger-outline">삭제</button></div>`;
+    const isEnded = !Number.isNaN(dt.getTime()) && Date.now() >= dt.getTime() + BROADCAST_DURATION_MS;
+    if (isEnded) li.style.opacity = '0.55';
+    li.innerHTML = `<span class="content"><b class="${isEnded ? 'ended-text' : ''}" style="color:var(--brand-dark);"></b> <span class="live-badge" style="display:${isLive ? 'inline-block' : 'none'};">LIVE</span><span class="ended-badge" style="display:${isEnded ? 'inline-block' : 'none'};">종료</span><br/><span class="bid ${isEnded ? 'ended-text' : ''}"></span></span><div class="li-actions"><button class="btn-danger-outline">삭제</button></div>`;
     li.querySelector('b').textContent = dtLabel;
     li.querySelector('.bid').textContent = `라이브 아이디: ${entry.broadcast_id}`;
     li.querySelector('button').addEventListener('click', async () => {
