@@ -167,6 +167,11 @@
     padding: 0 2px; user-select: none; line-height: 1;
   }
   .drag-handle:active { cursor: grabbing; }
+  .inline-edit-textarea {
+    width: 100%; border: 1px solid var(--brand); border-radius: 7px;
+    padding: 8px 9px; font-size: 12.5px; font-family: inherit; resize: vertical; min-height: 50px;
+  }
+  .draggable-item.editing { background: #fff; border: 1px solid var(--brand); align-items: flex-start; }
 
   .add-form { border-top: 1px dashed var(--border); margin-top: 14px; padding-top: 14px; }
 
@@ -270,8 +275,17 @@
             </div>
 
             <div class="card">
-              <h3>등록된 예약 문구</h3>
-              <p class="hint" style="margin-bottom:10px;">⠿ 아이콘을 드래그해서 게시 순서를 바꿀 수 있습니다.</p>
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+                <h3 style="margin:0;">등록된 예약 문구</h3>
+                <div style="display:flex; gap:6px;">
+                  <button class="btn btn-outline btn-sm" id="scheduledEditModeBtn">✏️ 수정모드</button>
+                  <button class="btn btn-outline btn-sm" id="scheduledCancelEditBtn" style="display:none;">취소</button>
+                  <button class="btn btn-primary btn-sm" id="scheduledSaveEditBtn" style="display:none;">💾 저장하기</button>
+                </div>
+              </div>
+              <p class="hint" style="margin-bottom:10px;" id="scheduledEditHint">
+                ⠿ 아이콘을 드래그해서 순서를 바꾸거나 문구를 수정하려면 "수정모드"를 눌러주세요.
+              </p>
               <ul class="item-list" id="scheduledList"></ul>
             </div>
           </section>
