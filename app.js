@@ -189,6 +189,8 @@ async function loadLiveSchedule() {
 }
 
 // ------------------------------- 예약 문구 -------------------------------
+let draggedScheduledLi = null;
+
 function renderScheduledList() {
   const ul = document.getElementById('scheduledList');
   ul.innerHTML = '';
@@ -198,7 +200,10 @@ function renderScheduledList() {
   }
   scheduledMessages.forEach((item) => {
     const li = document.createElement('li');
-    li.innerHTML = `<span class="content"></span><div class="li-actions"><button class="btn-danger-outline">삭제</button></div>`;
+    li.draggable = true;
+    li.dataset.id = item.id;
+    li.className = 'draggable-item';
+    li.innerHTML = `<span class="drag-handle" title="드래그해서 순서 변경">⠿</span><span class="content"></span><div class="li-actions"><button class="btn-danger-outline">삭제</button></div>`;
     li.querySelector('.content').textContent = item.text;
     li.querySelector('button').addEventListener('click', async () => {
       if (!confirm('이 예약 문구를 삭제할까요?')) return;
@@ -207,8 +212,43 @@ function renderScheduledList() {
       showSaveStatus('삭제됨 ✓', 'ok');
       await loadScheduled();
     });
+
+    li.addEventListener('dragstart', () => {
+      draggedScheduledLi = li;
+      li.classList.add('dragging');
+    });
+    li.addEventListener('dragend', async () => {
+      li.classList.remove('dragging');
+      draggedScheduledLi = null;
+      await saveScheduledOrder();
+    });
+    li.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      if (!draggedScheduledLi || draggedScheduledLi === li) return;
+      const rect = li.getBoundingClientRect();
+      const isAfter = e.clientY - rect.top > rect.height / 2;
+      ul.insertBefore(draggedScheduledLi, isAfter ? li.nextSibling : li);
+    });
+
     ul.appendChild(li);
   });
+}
+
+// 지금 화면에 보이는 순서 그대로 sort_order(0,1,2...)를 다시 매겨 서버에 저장합니다.
+async function saveScheduledOrder() {
+  const ul = document.getElementById('scheduledList');
+  const orderedIds = Array.from(ul.querySelectorAll('li[data-id]')).map((li) => li.dataset.id);
+  if (orderedIds.length === 0) return;
+
+  const updates = orderedIds.map((id, index) => ({ id, sort_order: index }));
+  const { error } = await supabaseClient.from('scheduled_messages').upsert(updates);
+  if (error) {
+    showSaveStatus('순서 저장 실패: ' + error.message, 'err');
+    await loadScheduled(); // 실패하면 서버 기준으로 되돌립니다.
+    return;
+  }
+  showSaveStatus('순서 저장됨 ✓', 'ok');
+  await loadScheduled();
 }
 
 async function addScheduledMessage() {
@@ -506,6 +546,11 @@ async function refreshDeviceStatus() {
     .from('device_status')
     .select('*')
     .order('last_seen_at', { ascending: false });
+
+  if (error) {
+    // 조용히 무시하지 않고 콘솔에 남깁니다. (예: 컬럼이 없거나 권한 문제일 때 여기서 확인 가능)
+    console.error('[관리자 웹페이지] device_status 조회 실패:', error.message || error);
+  }
 
   // "지금 라이브 중"으로 볼 수 있는 아이디 집합을 갱신합니다. (신선도 2분 이내인 것만 인정)
   const now = Date.now();

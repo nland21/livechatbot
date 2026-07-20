@@ -160,6 +160,13 @@
     letter-spacing: 0.3px; vertical-align: middle;
   }
   .li-actions { display: flex; gap: 6px; flex-shrink: 0; }
+  .draggable-item { transition: background 0.15s, opacity 0.15s; cursor: default; }
+  .draggable-item.dragging { opacity: 0.4; background: var(--brand-soft) !important; }
+  .drag-handle {
+    cursor: grab; color: var(--sub); font-size: 14px; flex-shrink: 0;
+    padding: 0 2px; user-select: none; line-height: 1;
+  }
+  .drag-handle:active { cursor: grabbing; }
 
   .add-form { border-top: 1px dashed var(--border); margin-top: 14px; padding-top: 14px; }
 
@@ -264,6 +271,7 @@
 
             <div class="card">
               <h3>등록된 예약 문구</h3>
+              <p class="hint" style="margin-bottom:10px;">⠿ 아이콘을 드래그해서 게시 순서를 바꿀 수 있습니다.</p>
               <ul class="item-list" id="scheduledList"></ul>
             </div>
           </section>
