@@ -122,7 +122,7 @@ let scheduledMessages = [];
 let keywordRules = [];
 let aiSkills = [];
 let liveSchedule = [];
-let broadcastSettings = { scheduled_interval_sec: 300, scheduled_mode: 'sequential' };
+let broadcastSettings = { scheduled_interval_sec: 300, scheduled_mode: 'sequential', keyword_reply_interval_sec: 15 };
 
 async function loadAll() {
   await Promise.all([loadBroadcastSettings(), loadScheduled(), loadKeywords(), loadSkills(), loadLiveSchedule()]);
@@ -139,9 +139,14 @@ async function loadBroadcastSettings() {
 function renderBroadcastSettings() {
   const intervalInput = document.getElementById('scheduledIntervalSec');
   const modeSelect = document.getElementById('scheduledMode');
-  if (!intervalInput || !modeSelect) return;
-  intervalInput.value = broadcastSettings.scheduled_interval_sec;
-  modeSelect.value = broadcastSettings.scheduled_mode;
+  if (intervalInput && modeSelect) {
+    intervalInput.value = broadcastSettings.scheduled_interval_sec;
+    modeSelect.value = broadcastSettings.scheduled_mode;
+  }
+  const keywordIntervalInput = document.getElementById('keywordReplyIntervalSec');
+  if (keywordIntervalInput) {
+    keywordIntervalInput.value = broadcastSettings.keyword_reply_interval_sec;
+  }
 }
 
 async function saveBroadcastSettings() {
@@ -155,6 +160,19 @@ async function saveBroadcastSettings() {
 
   if (error) { showSaveStatus('게시 설정 저장 실패: ' + error.message, 'err'); return; }
   showSaveStatus('게시 설정 저장됨 ✓', 'ok');
+  await loadBroadcastSettings();
+}
+
+async function saveKeywordSettings() {
+  const intervalRaw = Number(document.getElementById('keywordReplyIntervalSec').value);
+  const keyword_reply_interval_sec = Math.max(0, Number.isFinite(intervalRaw) ? intervalRaw : 15);
+
+  const { error } = await supabaseClient
+    .from('broadcast_settings')
+    .upsert({ id: 'default', keyword_reply_interval_sec });
+
+  if (error) { showSaveStatus('답변 설정 저장 실패: ' + error.message, 'err'); return; }
+  showSaveStatus('답변 설정 저장됨 ✓', 'ok');
   await loadBroadcastSettings();
 }
 
@@ -643,6 +661,8 @@ async function refreshDeviceStatus() {
   liveBroadcastIds = nextLiveBroadcastIds;
   if (changed) renderLiveScheduleList();
 
+  renderFeatureStatusBar(!error && data ? data : []);
+
   if (!pill) return;
 
   if (error || !data || data.length === 0) {
@@ -673,6 +693,40 @@ function formatRelativeTime(isoString) {
   const diffHour = Math.floor(diffMin / 60);
   if (diffHour < 24) return `${diffHour}시간 전`;
   return `${Math.floor(diffHour / 24)}일 전`;
+}
+
+// 로컬PC(들)의 "예약문구 / 키워드 자동답변 / AI 자동답변(스킬)" 켜짐·꺼짐 상태를 상단바 아래에 표시합니다.
+function renderFeatureStatusBar(devices) {
+  const bar = document.getElementById('deviceFeatureStatusBar');
+  if (!bar) return;
+
+  // scheduled_enabled 등이 null/undefined인 경우는, 아직 이 정보를 안 보내는 구버전 확장 프로그램이라는 뜻입니다.
+  const reportingDevices = (devices || []).filter((d) => d.scheduled_enabled !== null && d.scheduled_enabled !== undefined);
+
+  if (reportingDevices.length === 0) {
+    bar.style.display = 'none';
+    bar.innerHTML = '';
+    return;
+  }
+
+  const now = Date.now();
+  const chip = (label, on) =>
+    `<span class="feature-chip ${on ? 'on' : ''}"><span class="dot"></span>${label} ${on ? '켜짐' : '꺼짐'}</span>`;
+
+  bar.innerHTML = reportingDevices.map((d) => {
+    const stale = now - new Date(d.last_seen_at).getTime() > LIVE_BROADCAST_FRESHNESS_MS;
+    const skillsPart = d.ai_enabled && d.enabled_skills_count !== null && d.enabled_skills_count !== undefined
+      ? ` <span style="color:var(--sub);">(스킬 ${d.enabled_skills_count}개 활성)</span>`
+      : '';
+    return `
+      <span class="device-label">🖥️ ${escapeHtml(d.device_name)}${stale ? ' <span class="feature-stale">(정보 오래됨)</span>' : ''}</span>
+      ${chip('📝 예약문구', d.scheduled_enabled)}
+      ${chip('💬 키워드', d.keyword_enabled)}
+      ${chip('🤖 AI(스킬)', d.ai_enabled)}${skillsPart}
+    `;
+  }).join('<span style="color:var(--border);">│</span>');
+
+  bar.style.display = 'flex';
 }
 
 async function loadAccounts() {
@@ -848,6 +902,7 @@ function bindEvents() {
   });
 
   document.getElementById('saveBroadcastSettingsBtn').addEventListener('click', saveBroadcastSettings);
+  document.getElementById('saveKeywordSettingsBtn').addEventListener('click', saveKeywordSettings);
   document.getElementById('addScheduledBtn').addEventListener('click', addScheduledMessage);
   document.getElementById('scheduledEditModeBtn').addEventListener('click', enterScheduledEditMode);
   document.getElementById('scheduledCancelEditBtn').addEventListener('click', () => {
