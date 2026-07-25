@@ -696,6 +696,8 @@ function formatRelativeTime(isoString) {
 }
 
 // 로컬PC(들)의 "예약문구 / 키워드 자동답변 / AI 자동답변(스킬)" 켜짐·꺼짐 상태를 상단바 아래에 표시합니다.
+let expandedDeviceName = null; // 지금 이름을 클릭해서 [로그아웃][DB삭제] 버튼이 펼쳐진 기기
+
 function renderFeatureStatusBar(devices) {
   const bar = document.getElementById('deviceFeatureStatusBar');
   if (!bar) return;
@@ -718,8 +720,17 @@ function renderFeatureStatusBar(devices) {
     const skillsPart = d.ai_enabled && d.enabled_skills_count !== null && d.enabled_skills_count !== undefined
       ? ` <span style="color:var(--sub);">(스킬 ${d.enabled_skills_count}개 활성)</span>`
       : '';
+    const isExpanded = expandedDeviceName === d.device_name;
+    const actionsRow = isExpanded ? `
+      <span class="device-actions">
+        <button class="btn btn-outline btn-sm device-logout-btn" data-device="${escapeHtml(d.device_name)}">🔌 로그아웃</button>
+        <button class="btn-danger-outline device-delete-btn" data-device="${escapeHtml(d.device_name)}">DB삭제</button>
+      </span>` : '';
     return `
-      <span class="device-label">🖥️ ${escapeHtml(d.device_name)}${stale ? ' <span class="feature-stale">(정보 오래됨)</span>' : ''}</span>
+      <button type="button" class="device-label-btn ${isExpanded ? 'expanded' : ''}" data-device="${escapeHtml(d.device_name)}">
+        🖥️ ${escapeHtml(d.device_name)}${stale ? ' <span class="feature-stale">(정보 오래됨)</span>' : ''}
+      </button>
+      ${actionsRow}
       ${chip('📝 예약문구', d.scheduled_enabled)}
       ${chip('💬 키워드', d.keyword_enabled)}
       ${chip('🤖 AI(스킬)', d.ai_enabled)}${skillsPart}
@@ -727,6 +738,59 @@ function renderFeatureStatusBar(devices) {
   }).join('<span style="color:var(--border);">│</span>');
 
   bar.style.display = 'flex';
+
+  // 이름 클릭 → 로그아웃/DB삭제 버튼 펼치기·접기
+  bar.querySelectorAll('.device-label-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const name = btn.dataset.device;
+      expandedDeviceName = expandedDeviceName === name ? null : name;
+      renderFeatureStatusBar(devices);
+    });
+  });
+
+  bar.querySelectorAll('.device-logout-btn').forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      await requestDeviceLogout(btn.dataset.device);
+    });
+  });
+
+  bar.querySelectorAll('.device-delete-btn').forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      await deleteDeviceStatus(btn.dataset.device);
+    });
+  });
+}
+
+// 해당 PC에 "원격 로그아웃 신호"를 보냅니다. 그 PC의 확장 프로그램이 다음 상태 보고
+// 주기(최대 20초)에 이 신호를 확인하고 스스로 로그아웃합니다. (서비스 키 없이 안전하게 동작)
+async function requestDeviceLogout(deviceName) {
+  if (!confirm(`"${deviceName}" PC를 원격으로 로그아웃할까요?\n\n그 PC가 서버와 통신하는 다음 주기(최대 20초 이내)에 자동으로 로그아웃됩니다.`)) return;
+  const { error } = await supabaseClient
+    .from('device_status')
+    .update({ logout_requested: true })
+    .eq('device_name', deviceName);
+  if (error) { showSaveStatus('로그아웃 요청 실패: ' + error.message, 'err'); return; }
+  showSaveStatus(`"${deviceName}" 로그아웃 요청됨 ✓ (최대 20초 후 반영)`, 'ok');
+  expandedDeviceName = null;
+  await refreshDeviceStatus();
+}
+
+// 목록에서 이 PC 항목을 완전히 지웁니다. (그 PC가 지금도 접속 중이라면, 먼저 "로그아웃"을
+// 눌러서 끊어주신 뒤 삭제하시는 걸 권장합니다 — 접속 중에 삭제해도 그 PC가 곧 다시 보고하면
+// 목록에 재등록될 수 있습니다)
+async function deleteDeviceStatus(deviceName) {
+  if (!confirm(`"${deviceName}" 기록을 서버에서 완전히 삭제할까요?\n\n이 PC가 아직 접속 중이라면, 삭제해도 다음 보고 때 목록에 다시 나타날 수 있습니다.\n접속을 끊으시려면 먼저 "로그아웃"을 이용해주세요.`)) return;
+
+  // 혹시 지금도 접속 중이라면 최소한 로그아웃 신호는 함께 남겨둡니다. (best-effort)
+  await supabaseClient.from('device_status').update({ logout_requested: true }).eq('device_name', deviceName);
+
+  const { error } = await supabaseClient.from('device_status').delete().eq('device_name', deviceName);
+  if (error) { showSaveStatus('삭제 실패: ' + error.message, 'err'); return; }
+  showSaveStatus(`"${deviceName}" 삭제됨 ✓`, 'ok');
+  expandedDeviceName = null;
+  await refreshDeviceStatus();
 }
 
 async function loadAccounts() {

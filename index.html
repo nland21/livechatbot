@@ -205,6 +205,13 @@
     font-size: 11.5px; color: var(--sub);
   }
   .feature-status-bar .device-label { font-weight: 700; color: var(--text); }
+  .feature-status-bar .device-label-btn {
+    font-weight: 700; color: var(--text); background: none; border: none; padding: 2px 6px;
+    border-radius: 6px; cursor: pointer; font-size: 11.5px; font-family: inherit;
+  }
+  .feature-status-bar .device-label-btn:hover { background: #eef0f2; }
+  .feature-status-bar .device-label-btn.expanded { background: var(--brand-soft); color: var(--brand-dark); }
+  .feature-status-bar .device-actions { display: inline-flex; gap: 6px; align-items: center; }
   .feature-status-bar .feature-chip { display: inline-flex; align-items: center; gap: 4px; }
   .feature-status-bar .feature-chip .dot {
     width: 7px; height: 7px; border-radius: 50%; background: #c7cad1; display: inline-block;
