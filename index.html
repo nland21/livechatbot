@@ -253,6 +253,7 @@
           <button class="tab-btn active" data-tab="scheduled"><span class="icon">📝</span> 예약 문구</button>
           <button class="tab-btn" data-tab="keyword"><span class="icon">💬</span> 키워드 자동답변</button>
           <button class="tab-btn" data-tab="skills"><span class="icon">🧩</span> 스킬 관리</button>
+          <button class="tab-btn" data-tab="specs"><span class="icon">💻</span> 제품 스펙</button>
           <button class="tab-btn" data-tab="nextlive"><span class="icon">🔁</span> 다음 라이브 이동</button>
 
           <div class="nav-group-title" id="masterGroupTitle" style="display:none;">🔐 마스터관리자 전용</div>
@@ -390,8 +391,96 @@
               </div>
             </div>
             <div class="card">
+              <h3>📁 파일로 여러 개 한 번에 등록</h3>
+              <p class="hint">JSON, CSV, 엑셀(.xlsx) 파일을 올리면 내용을 미리 보여드리고, 확인 후 한 번에 등록합니다.</p>
+              <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px;">
+                <button class="btn btn-outline btn-sm" id="downloadJsonSampleBtn">📥 JSON 예시 받기</button>
+                <button class="btn btn-outline btn-sm" id="downloadCsvSampleBtn">📥 CSV 예시 받기</button>
+                <button class="btn btn-outline btn-sm" id="downloadXlsxSampleBtn">📥 엑셀 예시 받기</button>
+              </div>
+              <input type="file" id="skillFileInput" accept=".json,.csv,.xlsx,.xls" />
+              <p class="hint" style="margin-top:8px;margin-bottom:0;">
+                <b>CSV/엑셀 열 이름</b>: 스킬제목, 적용범위(공통 또는 방송전용), 라이브아이디(방송전용일 때만),
+                트리거키워드(쉼표로 구분, 비우면 항상 포함), 매칭방식(하나라도포함 또는 모두포함), 스킬내용, 사용여부(사용 또는 미사용, 생략시 사용)<br/>
+                <b>JSON 형식</b>: 예시 파일을 받아서 형식을 확인해주세요.
+              </p>
+              <div id="skillFilePreviewWrap" style="display:none;margin-top:14px;">
+                <p class="hint" id="skillFilePreviewSummary" style="margin-bottom:8px;"></p>
+                <div id="skillFilePreviewList"></div>
+                <div style="display:flex; gap:8px; margin-top:12px;">
+                  <button class="btn btn-primary" id="importSkillsBtn" style="flex:1;">✅ 확인한 항목 일괄 등록</button>
+                  <button class="btn btn-outline" id="cancelSkillImportBtn">취소</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
               <h3>등록된 스킬</h3>
               <div id="skillGroups"></div>
+            </div>
+          </section>
+
+          <!-- 제품 스펙 -->
+          <section id="tab-specs" class="tab-panel">
+            <h2>제품 스펙 관리</h2>
+            <p class="page-desc">모델별 스펙을 저장해두면, AI 자동답변이 질문에 언급된 모델명을 알아보고 정확한 스펙으로 답변합니다. (스펙 질문은 여기 저장된 값만 사용하고, 없는 항목은 추측하지 않도록 안내됩니다)</p>
+
+            <div class="card">
+              <div style="display:flex; gap:8px; margin-bottom:14px;">
+                <button class="btn btn-outline btn-sm" id="specModeManualBtn">✏️ 직접 입력</button>
+                <button class="btn btn-outline btn-sm" id="specModeJsonBtn">🧾 JSON으로 입력</button>
+              </div>
+
+              <div id="specManualForm">
+                <h3 id="specFormTitle" style="margin-top:0;">+ 새 모델 추가</h3>
+                <div class="field"><label>모델명 (필수)</label><input type="text" id="specModelName" placeholder="예: 16Z90R-GA76K" /></div>
+                <div class="row-2">
+                  <div class="field"><label>운영체제</label><input type="text" id="specOs" placeholder="예: Windows 11 Home" /></div>
+                  <div class="field"><label>CPU</label><input type="text" id="specCpu" placeholder="예: Intel Core Ultra 7 155H" /></div>
+                </div>
+                <div class="row-2">
+                  <div class="field"><label>해상도</label><input type="text" id="specResolution" placeholder="예: 2880x1800 (WQXGA+)" /></div>
+                  <div class="field"><label>메모리</label><input type="text" id="specMemory" placeholder="예: 16GB (최대 32GB)" /></div>
+                </div>
+                <div class="row-2">
+                  <div class="field"><label>저장장치</label><input type="text" id="specStorage" placeholder="예: 512GB NVMe SSD" /></div>
+                  <div class="field"><label>색상</label><input type="text" id="specColor" placeholder="예: 옵시디안 블랙" /></div>
+                </div>
+                <div class="field">
+                  <label>기타 스펙 (선택사항, JSON 형식)</label>
+                  <textarea id="specExtra" placeholder='예: {"배터리": "80Wh", "무게": "1.19kg", "그래픽카드": "Intel Arc"}' style="min-height:70px; font-family:monospace; font-size:11.5px;"></textarea>
+                  <p class="hint" style="margin-top:4px;">위 6가지 외에 더 필요한 스펙이 있으면 여기에 "이름": "값" 형식으로 자유롭게 추가하세요. 비워두셔도 됩니다.</p>
+                </div>
+                <div style="display:flex; gap:8px;">
+                  <button class="btn btn-primary" id="saveSpecBtn" style="flex:1;">모델 추가</button>
+                  <button class="btn btn-outline" id="cancelSpecEditBtn" style="display:none;">수정 취소</button>
+                </div>
+              </div>
+
+              <div id="specJsonForm" style="display:none;">
+                <p class="hint" style="margin-bottom:10px;">
+                  여러 모델을 한 번에 등록/수정합니다. <b>같은 모델명이 이미 있으면 내용을 덮어씁니다(업서트)</b> —
+                  기존 모델의 스펙을 갱신할 때도 그대로 사용하시면 됩니다.
+                </p>
+                <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
+                  <button class="btn btn-outline btn-sm" id="downloadSpecJsonSampleBtn">📥 JSON 예시 받기</button>
+                </div>
+                <textarea id="specJsonInput" placeholder="여기에 JSON 배열을 붙여넣거나, 아래에서 파일을 선택하세요" style="min-height:140px; font-family: monospace; font-size:11.5px;"></textarea>
+                <input type="file" id="specFileInput" accept=".json" style="margin-top:8px;" />
+                <div id="specJsonPreviewWrap" style="display:none; margin-top:14px;">
+                  <p class="hint" id="specJsonPreviewSummary" style="margin-bottom:8px;"></p>
+                  <div id="specJsonPreviewList"></div>
+                </div>
+                <div style="display:flex; gap:8px; margin-top:12px;">
+                  <button class="btn btn-outline" id="parseSpecJsonBtn" style="flex:1;">미리보기 확인</button>
+                  <button class="btn btn-primary" id="importSpecsBtn" style="flex:1; display:none;">✅ 확인한 항목 일괄 등록(업서트)</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <h3>등록된 제품 스펙</h3>
+              <div id="specList"></div>
             </div>
           </section>
 
@@ -466,6 +555,7 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="config.js"></script>
   <script src="app.js"></script>
 </body>

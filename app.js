@@ -93,6 +93,7 @@ async function afterLogin(session) {
 
   populateTimeSelects();
   bindEvents();
+  switchSpecMode('manual');
   await loadAll();
   if (currentUserRole === 'master_admin') {
     await loadAccounts();
@@ -122,10 +123,11 @@ let scheduledMessages = [];
 let keywordRules = [];
 let aiSkills = [];
 let liveSchedule = [];
+let productSpecs = [];
 let broadcastSettings = { scheduled_interval_sec: 300, scheduled_mode: 'sequential', keyword_reply_interval_sec: 15 };
 
 async function loadAll() {
-  await Promise.all([loadBroadcastSettings(), loadScheduled(), loadKeywords(), loadSkills(), loadLiveSchedule()]);
+  await Promise.all([loadBroadcastSettings(), loadScheduled(), loadKeywords(), loadSkills(), loadLiveSchedule(), loadProductSpecs()]);
 }
 
 async function loadBroadcastSettings() {
@@ -563,6 +565,537 @@ async function saveSkill() {
   await loadSkills();
 }
 
+// ------------------------------- 스킬 파일(JSON/CSV/엑셀) 일괄 등록 -------------------------------
+let parsedSkillImportRows = [];
+
+// CSV/엑셀 열 이름(또는 JSON 키)이 이렇게 들어와도 알아서 인식하도록 별칭을 매핑합니다.
+const SKILL_FIELD_ALIASES = {
+  title: ['스킬제목', '제목', 'title'],
+  scope: ['적용범위', '범위', 'scope'],
+  broadcastId: ['라이브아이디', '방송아이디', '방송id', 'broadcastid', 'broadcast_id'],
+  keywords: ['트리거키워드', '키워드', 'keywords'],
+  matchType: ['매칭방식', 'matchtype', 'match_type'],
+  content: ['스킬내용', '내용', 'content'],
+  enabled: ['사용여부', '사용', 'enabled'],
+};
+
+function normalizeHeaderKey(key) {
+  return String(key ?? '').replace(/\s+/g, '').toLowerCase();
+}
+
+function findSkillField(normalizedRowMap, fieldKey) {
+  for (const alias of SKILL_FIELD_ALIASES[fieldKey]) {
+    const aliasKey = normalizeHeaderKey(alias);
+    if (aliasKey in normalizedRowMap) return normalizedRowMap[aliasKey];
+  }
+  return undefined;
+}
+
+function normalizeScopeValue(v) {
+  const s = normalizeHeaderKey(v);
+  return ['broadcast', '방송전용', '방송', '특정방송'].includes(s) ? 'broadcast' : 'common';
+}
+
+function normalizeMatchTypeValue(v) {
+  const s = normalizeHeaderKey(v);
+  return ['all', '모두포함', 'and'].includes(s) ? 'all' : 'any';
+}
+
+function normalizeEnabledValue(v) {
+  if (v === undefined || v === null || v === '') return true;
+  const s = normalizeHeaderKey(v);
+  return !['미사용', 'false', '0', 'n', 'no', 'off'].includes(s);
+}
+
+// 파일에서 읽은 원본 행(JSON 객체 또는 CSV/엑셀 한 줄) 하나를 등록 가능한 스킬 형태로 정리합니다.
+function parseSkillRow(row) {
+  const map = {};
+  Object.keys(row || {}).forEach((k) => { map[normalizeHeaderKey(k)] = row[k]; });
+
+  const title = String(findSkillField(map, 'title') ?? '').trim();
+  const scope = normalizeScopeValue(findSkillField(map, 'scope'));
+  const broadcastIdRaw = findSkillField(map, 'broadcastId');
+  const broadcastId = broadcastIdRaw !== undefined && broadcastIdRaw !== null ? String(broadcastIdRaw).trim() : '';
+  const keywordsRaw = findSkillField(map, 'keywords');
+  const keywords = Array.isArray(keywordsRaw)
+    ? keywordsRaw.map((k) => String(k).trim()).filter(Boolean)
+    : String(keywordsRaw ?? '').split(',').map((k) => k.trim()).filter(Boolean);
+  const matchType = normalizeMatchTypeValue(findSkillField(map, 'matchType'));
+  const content = String(findSkillField(map, 'content') ?? '').trim();
+  const enabled = normalizeEnabledValue(findSkillField(map, 'enabled'));
+
+  const errors = [];
+  if (!title) errors.push('스킬 제목 없음');
+  if (!content) errors.push('스킬 내용 없음');
+  if (scope === 'broadcast' && !/^\d+$/.test(broadcastId)) errors.push('방송전용인데 라이브 아이디가 숫자가 아님');
+
+  return {
+    title, scope, broadcastId: scope === 'broadcast' ? broadcastId : '',
+    keywords, matchType, content, enabled,
+    _errors: errors, _valid: errors.length === 0,
+  };
+}
+
+function renderSkillImportPreview() {
+  const wrap = document.getElementById('skillFilePreviewWrap');
+  const summary = document.getElementById('skillFilePreviewSummary');
+  const list = document.getElementById('skillFilePreviewList');
+  if (!wrap || !summary || !list) return;
+
+  if (parsedSkillImportRows.length === 0) {
+    wrap.style.display = 'none';
+    return;
+  }
+
+  const validCount = parsedSkillImportRows.filter((r) => r._valid).length;
+  summary.textContent = `총 ${parsedSkillImportRows.length}개 중 ${validCount}개 등록 가능합니다. (문제 있는 항목 ❌은 등록에서 자동 제외됩니다)`;
+
+  list.innerHTML = '';
+  parsedSkillImportRows.forEach((row) => {
+    const item = document.createElement('div');
+    item.style.cssText = `border:1px solid ${row._valid ? 'var(--border)' : 'var(--danger)'}; border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; font-size: 12px;`;
+    const scopeLabel = row.scope === 'broadcast' ? `방송전용(${escapeHtml(row.broadcastId)})` : '공통';
+    const keywordLabel = row.keywords.length ? escapeHtml(row.keywords.join(', ')) : '항상 포함';
+    const matchLabel = row.matchType === 'all' ? '모두포함' : '하나라도포함';
+    const preview = (row.content || '').slice(0, 100) + ((row.content || '').length > 100 ? '…' : '');
+    item.innerHTML = `
+      <b>${row._valid ? '✅' : '❌'} ${escapeHtml(row.title || '(제목 없음)')}</b>
+      <div class="hint" style="margin-top:4px;">${scopeLabel} · ${keywordLabel} · ${matchLabel} · ${row.enabled ? '사용' : '미사용'}</div>
+      <div class="hint" style="margin-top:4px;">${escapeHtml(preview)}</div>
+      ${row._errors.length ? `<div style="color:var(--danger); font-size:11px; margin-top:4px;">⚠️ ${escapeHtml(row._errors.join(', '))}</div>` : ''}
+    `;
+    list.appendChild(item);
+  });
+
+  wrap.style.display = 'block';
+}
+
+function cancelSkillImport() {
+  parsedSkillImportRows = [];
+  const fileInput = document.getElementById('skillFileInput');
+  if (fileInput) fileInput.value = '';
+  const wrap = document.getElementById('skillFilePreviewWrap');
+  if (wrap) wrap.style.display = 'none';
+}
+
+async function handleSkillFileSelected(e) {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  const ext = (file.name.split('.').pop() || '').toLowerCase();
+
+  try {
+    let rawRows = [];
+    if (ext === 'json') {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      rawRows = Array.isArray(data) ? data : (Array.isArray(data.skills) ? data.skills : []);
+    } else if (ext === 'csv') {
+      const text = await file.text();
+      const wb = XLSX.read(text, { type: 'string' });
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      rawRows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+    } else if (ext === 'xlsx' || ext === 'xls') {
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: 'array' });
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      rawRows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+    } else {
+      alert('JSON, CSV, 엑셀(.xlsx/.xls) 파일만 지원합니다.');
+      return;
+    }
+
+    if (rawRows.length === 0) {
+      alert('파일에서 읽을 수 있는 행이 없습니다.');
+      return;
+    }
+
+    parsedSkillImportRows = rawRows.map(parseSkillRow);
+    renderSkillImportPreview();
+  } catch (err) {
+    alert('파일을 읽는 중 오류가 발생했습니다: ' + err.message);
+  }
+}
+
+async function importSkillsFromFile() {
+  const validRows = parsedSkillImportRows.filter((r) => r._valid);
+  if (validRows.length === 0) { alert('등록 가능한 항목이 없습니다.'); return; }
+  if (!confirm(`${validRows.length}개의 스킬을 등록할까요?`)) return;
+
+  const payload = validRows.map((r) => ({
+    title: r.title,
+    scope: r.scope,
+    broadcast_id: r.scope === 'broadcast' ? r.broadcastId : null,
+    keywords: r.keywords,
+    match_type: r.matchType,
+    content: r.content,
+    enabled: r.enabled,
+  }));
+
+  const { error } = await supabaseClient.from('ai_skills').insert(payload);
+  if (error) { showSaveStatus('일괄 등록 실패: ' + error.message, 'err'); return; }
+  showSaveStatus(`${validRows.length}개 스킬 등록됨 ✓`, 'ok');
+  cancelSkillImport();
+  await loadSkills();
+}
+
+// ------------------------------- 스킬 예시 파일 다운로드 -------------------------------
+const SKILL_SAMPLE_DATA = [
+  {
+    title: '무이자 할부 안내', scope: 'common', broadcastId: '',
+    keywords: ['할부', '무이자'], matchType: 'any',
+    content: '저희 라이브에서는 5개 카드사 12개월 무이자 할부가 가능합니다. 카드사별 정확한 조건은 결제창에서 확인해주세요.',
+    enabled: true,
+  },
+  {
+    title: '그램케어 서비스 안내', scope: 'common', broadcastId: '',
+    keywords: ['그램케어', 'AS', '보증'], matchType: 'any',
+    content: '그램케어는 구매 후 1년간 파손도 무상으로 수리해드리는 LG전자 정품 보증 서비스입니다. 모델에 따라 제공 여부가 다를 수 있어요.',
+    enabled: true,
+  },
+  {
+    title: '이번 방송 한정 사은품', scope: 'broadcast', broadcastId: '1974367',
+    keywords: [], matchType: 'any',
+    content: '이번 방송에서 구매하시는 고객님께는 사은품으로 무선마우스를 함께 보내드립니다. 다른 방송에는 적용되지 않는 혜택이에요.',
+    enabled: true,
+  },
+];
+
+function downloadBlob(filename, content, mime) {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function downloadSkillJsonSample() {
+  const data = SKILL_SAMPLE_DATA.map((s) => ({
+    title: s.title, scope: s.scope, broadcastId: s.broadcastId,
+    keywords: s.keywords, matchType: s.matchType, content: s.content, enabled: s.enabled,
+  }));
+  downloadBlob('스킬_예시.json', JSON.stringify(data, null, 2), 'application/json;charset=utf-8');
+}
+
+function buildSkillSampleCsvRows() {
+  const headers = ['스킬제목', '적용범위', '라이브아이디', '트리거키워드', '매칭방식', '스킬내용', '사용여부'];
+  const rows = SKILL_SAMPLE_DATA.map((s) => [
+    s.title,
+    s.scope === 'broadcast' ? '방송전용' : '공통',
+    s.broadcastId || '',
+    s.keywords.join(', '),
+    s.matchType === 'all' ? '모두포함' : '하나라도포함',
+    s.content,
+    s.enabled ? '사용' : '미사용',
+  ]);
+  return [headers, ...rows];
+}
+
+function downloadSkillCsvSample() {
+  const lines = buildSkillSampleCsvRows().map((cols) =>
+    cols.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',')
+  );
+  const csv = '\uFEFF' + lines.join('\r\n'); // BOM: 엑셀에서 열어도 한글이 안 깨지도록
+  downloadBlob('스킬_예시.csv', csv, 'text/csv;charset=utf-8');
+}
+
+function downloadSkillXlsxSample() {
+  const [headers, ...rows] = buildSkillSampleCsvRows();
+  const aoa = [headers, ...rows];
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '스킬');
+  XLSX.writeFile(wb, '스킬_예시.xlsx');
+}
+
+// ------------------------------- 제품 스펙 관리 -------------------------------
+let editingSpecId = null;
+let parsedSpecImportRows = [];
+
+async function loadProductSpecs() {
+  const { data, error } = await supabaseClient
+    .from('product_specs').select('*').order('model_name', { ascending: true });
+  if (error) { showSaveStatus('제품 스펙 불러오기 실패: ' + error.message, 'err'); return; }
+  productSpecs = data || [];
+  renderSpecList();
+}
+
+function renderSpecList() {
+  const container = document.getElementById('specList');
+  if (!container) return;
+  if (productSpecs.length === 0) {
+    container.innerHTML = '<p class="hint">등록된 제품 스펙이 없습니다.</p>';
+    return;
+  }
+  container.innerHTML = '';
+  productSpecs.forEach((spec) => {
+    const div = document.createElement('div');
+    div.style.cssText = 'border:1px solid var(--border); border-radius:8px; padding:12px; margin-bottom:8px;';
+    const specLine = [spec.os, spec.cpu, spec.resolution, spec.memory, spec.storage, spec.color].filter(Boolean).join(' · ');
+    const extraKeys = spec.extra && typeof spec.extra === 'object' ? Object.keys(spec.extra) : [];
+    const extraLine = extraKeys.map((k) => `${k}=${spec.extra[k]}`).join(', ');
+    div.innerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
+        <div>
+          <b>${escapeHtml(spec.model_name)}</b>
+          <div class="hint" style="margin-top:4px;">${escapeHtml(specLine || '(스펙 미입력)')}</div>
+          ${extraKeys.length ? `<div class="hint" style="margin-top:4px;">기타: ${escapeHtml(extraLine)}</div>` : ''}
+        </div>
+        <div class="li-actions">
+          <button class="btn btn-outline btn-sm spec-edit-btn">수정</button>
+          <button class="btn-danger-outline spec-delete-btn">삭제</button>
+        </div>
+      </div>
+    `;
+    div.querySelector('.spec-edit-btn').addEventListener('click', () => startEditSpec(spec));
+    div.querySelector('.spec-delete-btn').addEventListener('click', () => deleteSpec(spec));
+    container.appendChild(div);
+  });
+}
+
+function switchSpecMode(mode) {
+  const manualForm = document.getElementById('specManualForm');
+  const jsonForm = document.getElementById('specJsonForm');
+  const manualBtn = document.getElementById('specModeManualBtn');
+  const jsonBtn = document.getElementById('specModeJsonBtn');
+  if (mode === 'json') {
+    manualForm.style.display = 'none';
+    jsonForm.style.display = 'block';
+    manualBtn.classList.remove('btn-primary');
+    jsonBtn.classList.add('btn-primary');
+  } else {
+    manualForm.style.display = 'block';
+    jsonForm.style.display = 'none';
+    jsonBtn.classList.remove('btn-primary');
+    manualBtn.classList.add('btn-primary');
+  }
+}
+
+function startEditSpec(spec) {
+  editingSpecId = spec.id;
+  document.getElementById('specFormTitle').textContent = `"${spec.model_name}" 수정`;
+  document.getElementById('specModelName').value = spec.model_name || '';
+  document.getElementById('specOs').value = spec.os || '';
+  document.getElementById('specCpu').value = spec.cpu || '';
+  document.getElementById('specResolution').value = spec.resolution || '';
+  document.getElementById('specMemory').value = spec.memory || '';
+  document.getElementById('specStorage').value = spec.storage || '';
+  document.getElementById('specColor').value = spec.color || '';
+  document.getElementById('specExtra').value = spec.extra && Object.keys(spec.extra).length ? JSON.stringify(spec.extra, null, 2) : '';
+  document.getElementById('saveSpecBtn').textContent = '수정 저장';
+  document.getElementById('cancelSpecEditBtn').style.display = 'inline-block';
+  switchSpecMode('manual');
+}
+
+function resetSpecForm() {
+  editingSpecId = null;
+  document.getElementById('specFormTitle').textContent = '+ 새 모델 추가';
+  ['specModelName', 'specOs', 'specCpu', 'specResolution', 'specMemory', 'specStorage', 'specColor', 'specExtra'].forEach((id) => {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('saveSpecBtn').textContent = '모델 추가';
+  document.getElementById('cancelSpecEditBtn').style.display = 'none';
+}
+
+async function saveSpec() {
+  const modelName = document.getElementById('specModelName').value.trim();
+  if (!modelName) { alert('모델명을 입력해주세요.'); return; }
+
+  let extra = {};
+  const extraRaw = document.getElementById('specExtra').value.trim();
+  if (extraRaw) {
+    try {
+      extra = JSON.parse(extraRaw);
+      if (typeof extra !== 'object' || Array.isArray(extra) || extra === null) throw new Error('{"이름":"값"} 형태의 객체여야 합니다');
+    } catch (err) {
+      alert('기타 스펙(JSON) 형식이 올바르지 않습니다: ' + err.message);
+      return;
+    }
+  }
+
+  const payload = {
+    model_name: modelName,
+    os: document.getElementById('specOs').value.trim() || null,
+    cpu: document.getElementById('specCpu').value.trim() || null,
+    resolution: document.getElementById('specResolution').value.trim() || null,
+    memory: document.getElementById('specMemory').value.trim() || null,
+    storage: document.getElementById('specStorage').value.trim() || null,
+    color: document.getElementById('specColor').value.trim() || null,
+    extra,
+  };
+
+  let error;
+  if (editingSpecId) {
+    ({ error } = await supabaseClient.from('product_specs').update(payload).eq('id', editingSpecId));
+  } else {
+    // 같은 모델명이 이미 있으면 새로 추가하는 대신 덮어씁니다(업서트) — 실수로 중복 등록되는 것을 방지합니다.
+    ({ error } = await supabaseClient.from('product_specs').upsert(payload, { onConflict: 'model_name' }));
+  }
+  if (error) { showSaveStatus('저장 실패: ' + error.message, 'err'); return; }
+  resetSpecForm();
+  showSaveStatus('저장됨 ✓', 'ok');
+  await loadProductSpecs();
+}
+
+async function deleteSpec(spec) {
+  if (!confirm(`"${spec.model_name}" 스펙을 삭제할까요?`)) return;
+  const { error } = await supabaseClient.from('product_specs').delete().eq('id', spec.id);
+  if (error) { showSaveStatus('삭제 실패: ' + error.message, 'err'); return; }
+  showSaveStatus('삭제됨 ✓', 'ok');
+  if (editingSpecId === spec.id) resetSpecForm();
+  await loadProductSpecs();
+}
+
+// ---------------- 제품 스펙: JSON 일괄 입력 ----------------
+const SPEC_FIELD_ALIASES = {
+  modelName: ['모델명', 'model', 'modelname', 'model_name'],
+  os: ['운영체제', 'os'],
+  cpu: ['cpu', '프로세서'],
+  resolution: ['해상도', 'resolution'],
+  memory: ['메모리', 'ram', 'memory'],
+  storage: ['저장장치', 'storage', 'ssd'],
+  color: ['색상', 'color'],
+  extra: ['기타', '기타스펙', 'extra'],
+};
+
+function findSpecField(normalizedRowMap, fieldKey) {
+  for (const alias of SPEC_FIELD_ALIASES[fieldKey]) {
+    const aliasKey = normalizeHeaderKey(alias);
+    if (aliasKey in normalizedRowMap) return normalizedRowMap[aliasKey];
+  }
+  return undefined;
+}
+
+function parseSpecRow(row) {
+  const map = {};
+  Object.keys(row || {}).forEach((k) => { map[normalizeHeaderKey(k)] = row[k]; });
+
+  const modelName = String(findSpecField(map, 'modelName') ?? '').trim();
+  const os = String(findSpecField(map, 'os') ?? '').trim();
+  const cpu = String(findSpecField(map, 'cpu') ?? '').trim();
+  const resolution = String(findSpecField(map, 'resolution') ?? '').trim();
+  const memory = String(findSpecField(map, 'memory') ?? '').trim();
+  const storage = String(findSpecField(map, 'storage') ?? '').trim();
+  const color = String(findSpecField(map, 'color') ?? '').trim();
+  let extra = findSpecField(map, 'extra');
+  if (extra && typeof extra === 'string') {
+    try { extra = JSON.parse(extra); } catch { extra = {}; }
+  }
+  if (!extra || typeof extra !== 'object' || Array.isArray(extra)) extra = {};
+
+  const errors = [];
+  if (!modelName) errors.push('모델명 없음');
+
+  return { modelName, os, cpu, resolution, memory, storage, color, extra, _errors: errors, _valid: errors.length === 0 };
+}
+
+function renderSpecImportPreview() {
+  const wrap = document.getElementById('specJsonPreviewWrap');
+  const summary = document.getElementById('specJsonPreviewSummary');
+  const list = document.getElementById('specJsonPreviewList');
+  const importBtn = document.getElementById('importSpecsBtn');
+  if (!wrap || !summary || !list || !importBtn) return;
+
+  if (parsedSpecImportRows.length === 0) {
+    wrap.style.display = 'none';
+    importBtn.style.display = 'none';
+    return;
+  }
+
+  const validCount = parsedSpecImportRows.filter((r) => r._valid).length;
+  summary.textContent = `총 ${parsedSpecImportRows.length}개 중 ${validCount}개 등록 가능합니다. (같은 모델명이 이미 있으면 내용을 덮어씁니다)`;
+
+  list.innerHTML = '';
+  parsedSpecImportRows.forEach((row) => {
+    const item = document.createElement('div');
+    item.style.cssText = `border:1px solid ${row._valid ? 'var(--border)' : 'var(--danger)'}; border-radius:8px; padding:10px 12px; margin-bottom:8px; font-size:12px;`;
+    const specLine = [row.os, row.cpu, row.resolution, row.memory, row.storage, row.color].filter(Boolean).join(' · ');
+    item.innerHTML = `
+      <b>${row._valid ? '✅' : '❌'} ${escapeHtml(row.modelName || '(모델명 없음)')}</b>
+      <div class="hint" style="margin-top:4px;">${escapeHtml(specLine || '(스펙 없음)')}</div>
+      ${row._errors.length ? `<div style="color:var(--danger); font-size:11px; margin-top:4px;">⚠️ ${escapeHtml(row._errors.join(', '))}</div>` : ''}
+    `;
+    list.appendChild(item);
+  });
+
+  wrap.style.display = 'block';
+  importBtn.style.display = validCount > 0 ? 'block' : 'none';
+}
+
+async function handleSpecFileSelected(e) {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  try {
+    const text = await file.text();
+    document.getElementById('specJsonInput').value = text; // 파일 내용을 textarea에 채워서, 등록 전에 직접 눈으로 확인할 수 있게 합니다.
+  } catch (err) {
+    alert('파일을 읽는 중 오류가 발생했습니다: ' + err.message);
+  }
+}
+
+function parseSpecJsonInput() {
+  const raw = document.getElementById('specJsonInput').value.trim();
+  if (!raw) { alert('JSON 내용을 입력하거나 파일을 선택해주세요.'); return; }
+  let data;
+  try {
+    data = JSON.parse(raw);
+  } catch (err) {
+    alert('JSON 형식이 올바르지 않습니다: ' + err.message);
+    return;
+  }
+  const rows = Array.isArray(data) ? data : (Array.isArray(data.specs) ? data.specs : []);
+  if (rows.length === 0) { alert('배열 형태의 데이터를 찾을 수 없습니다.'); return; }
+  parsedSpecImportRows = rows.map(parseSpecRow);
+  renderSpecImportPreview();
+}
+
+async function importSpecsFromJson() {
+  const validRows = parsedSpecImportRows.filter((r) => r._valid);
+  if (validRows.length === 0) { alert('등록 가능한 항목이 없습니다.'); return; }
+  if (!confirm(`${validRows.length}개의 모델 스펙을 등록/갱신할까요?`)) return;
+
+  const payload = validRows.map((r) => ({
+    model_name: r.modelName,
+    os: r.os || null,
+    cpu: r.cpu || null,
+    resolution: r.resolution || null,
+    memory: r.memory || null,
+    storage: r.storage || null,
+    color: r.color || null,
+    extra: r.extra || {},
+  }));
+
+  const { error } = await supabaseClient.from('product_specs').upsert(payload, { onConflict: 'model_name' });
+  if (error) { showSaveStatus('일괄 등록 실패: ' + error.message, 'err'); return; }
+  showSaveStatus(`${validRows.length}개 모델 등록/갱신됨 ✓`, 'ok');
+  parsedSpecImportRows = [];
+  document.getElementById('specJsonInput').value = '';
+  document.getElementById('specFileInput').value = '';
+  document.getElementById('specJsonPreviewWrap').style.display = 'none';
+  document.getElementById('importSpecsBtn').style.display = 'none';
+  await loadProductSpecs();
+}
+
+const SPEC_SAMPLE_DATA = [
+  {
+    modelName: '16Z90R-GA76K', os: 'Windows 11 Home', cpu: 'Intel Core Ultra 7 155H',
+    resolution: '2880x1800 (WQXGA+)', memory: '16GB (최대 32GB)', storage: '512GB NVMe SSD', color: '옵시디안 블랙',
+    extra: { 배터리: '80Wh', 무게: '1.19kg', 그래픽카드: 'Intel Arc Graphics' },
+  },
+  {
+    modelName: '17Z90S-GA70K', os: 'Windows 11 Home', cpu: 'Intel Core Ultra 5 125H',
+    resolution: '1920x1200 (WUXGA)', memory: '8GB (최대 32GB)', storage: '256GB NVMe SSD', color: '실버',
+    extra: { 무게: '1.35kg' },
+  },
+];
+
+function downloadSpecJsonSample() {
+  downloadBlob('제품스펙_예시.json', JSON.stringify(SPEC_SAMPLE_DATA, null, 2), 'application/json;charset=utf-8');
+}
+
 // ------------------------------- 다음 라이브 예약 시간표 -------------------------------
 function formatDatetime24h(dateObj) {
   const pad = (n) => String(n).padStart(2, '0');
@@ -981,6 +1514,22 @@ function bindEvents() {
   });
   document.getElementById('saveSkillBtn').addEventListener('click', saveSkill);
   document.getElementById('cancelSkillEditBtn').addEventListener('click', resetSkillForm);
+
+  document.getElementById('skillFileInput').addEventListener('change', handleSkillFileSelected);
+  document.getElementById('importSkillsBtn').addEventListener('click', importSkillsFromFile);
+  document.getElementById('cancelSkillImportBtn').addEventListener('click', cancelSkillImport);
+  document.getElementById('downloadJsonSampleBtn').addEventListener('click', downloadSkillJsonSample);
+  document.getElementById('downloadCsvSampleBtn').addEventListener('click', downloadSkillCsvSample);
+  document.getElementById('downloadXlsxSampleBtn').addEventListener('click', downloadSkillXlsxSample);
+
+  document.getElementById('specModeManualBtn').addEventListener('click', () => switchSpecMode('manual'));
+  document.getElementById('specModeJsonBtn').addEventListener('click', () => switchSpecMode('json'));
+  document.getElementById('saveSpecBtn').addEventListener('click', saveSpec);
+  document.getElementById('cancelSpecEditBtn').addEventListener('click', resetSpecForm);
+  document.getElementById('specFileInput').addEventListener('change', handleSpecFileSelected);
+  document.getElementById('parseSpecJsonBtn').addEventListener('click', parseSpecJsonInput);
+  document.getElementById('importSpecsBtn').addEventListener('click', importSpecsFromJson);
+  document.getElementById('downloadSpecJsonSampleBtn').addEventListener('click', downloadSpecJsonSample);
 
   const addAccountBtn = document.getElementById('addAccountBtn');
   if (addAccountBtn) addAccountBtn.addEventListener('click', createAccount);
