@@ -124,7 +124,10 @@ let keywordRules = [];
 let aiSkills = [];
 let liveSchedule = [];
 let productSpecs = [];
-let broadcastSettings = { scheduled_interval_sec: 300, scheduled_mode: 'sequential', keyword_reply_interval_sec: 15 };
+let broadcastSettings = {
+  scheduled_interval_sec: 300, scheduled_mode: 'sequential', keyword_reply_interval_sec: 15,
+  ai_role_instructions: '', ai_tone_guide: '',
+};
 
 async function loadAll() {
   await Promise.all([loadBroadcastSettings(), loadScheduled(), loadKeywords(), loadSkills(), loadLiveSchedule(), loadProductSpecs()]);
@@ -149,6 +152,10 @@ function renderBroadcastSettings() {
   if (keywordIntervalInput) {
     keywordIntervalInput.value = broadcastSettings.keyword_reply_interval_sec;
   }
+  const roleInput = document.getElementById('aiRoleInstructions');
+  const toneInput = document.getElementById('aiToneGuide');
+  if (roleInput) roleInput.value = broadcastSettings.ai_role_instructions || '';
+  if (toneInput) toneInput.value = broadcastSettings.ai_tone_guide || '';
 }
 
 async function saveBroadcastSettings() {
@@ -175,6 +182,19 @@ async function saveKeywordSettings() {
 
   if (error) { showSaveStatus('답변 설정 저장 실패: ' + error.message, 'err'); return; }
   showSaveStatus('답변 설정 저장됨 ✓', 'ok');
+  await loadBroadcastSettings();
+}
+
+async function saveAiGuideSettings() {
+  const ai_role_instructions = document.getElementById('aiRoleInstructions').value.trim();
+  const ai_tone_guide = document.getElementById('aiToneGuide').value.trim();
+
+  const { error } = await supabaseClient
+    .from('broadcast_settings')
+    .upsert({ id: 'default', ai_role_instructions, ai_tone_guide });
+
+  if (error) { showSaveStatus('AI 답변 기본 설정 저장 실패: ' + error.message, 'err'); return; }
+  showSaveStatus('AI 답변 기본 설정 저장됨 ✓', 'ok');
   await loadBroadcastSettings();
 }
 
@@ -504,6 +524,32 @@ function renderSkills() {
   }
 }
 
+// 스킬 내용을 "[필수 포함 내용]"과 "[핵심 규칙]" 두 칸으로 나눠 입력받되, DB에는 지금처럼
+// content 컬럼 하나에 합쳐서 저장합니다 (AI에게 전달될 때도 헤더가 있어 더 또렷하게 인식됩니다).
+const SKILL_REQUIRED_HEADER = '[필수 포함 내용]';
+const SKILL_RULES_HEADER = '[핵심 규칙]';
+
+function combineSkillContent(requiredContent, coreRules) {
+  const parts = [];
+  if (requiredContent.trim()) parts.push(`${SKILL_REQUIRED_HEADER}\n${requiredContent.trim()}`);
+  if (coreRules.trim()) parts.push(`${SKILL_RULES_HEADER}\n${coreRules.trim()}`);
+  return parts.join('\n\n');
+}
+
+function splitSkillContent(content) {
+  const text = content || '';
+  const requiredMatch = text.match(/\[필수 포함 내용\]\s*\n([\s\S]*?)(?=\n\[핵심 규칙\]|$)/);
+  const rulesMatch = text.match(/\[핵심 규칙\]\s*\n([\s\S]*)$/);
+  if (requiredMatch || rulesMatch) {
+    return {
+      requiredContent: requiredMatch ? requiredMatch[1].trim() : '',
+      coreRules: rulesMatch ? rulesMatch[1].trim() : '',
+    };
+  }
+  // 예전 형식(구분 없이 자유서술)으로 저장된 스킬은, 기존 내용을 잃지 않도록 "핵심 규칙" 칸에 그대로 넣어줍니다.
+  return { requiredContent: '', coreRules: text.trim() };
+}
+
 function startEditSkill(skill) {
   editingSkillId = skill.id;
   document.getElementById('skillFormTitle').textContent = `✏️ 스킬 수정: ${skill.title}`;
@@ -513,7 +559,9 @@ function startEditSkill(skill) {
   document.getElementById('skillBroadcastIdField').style.display = skill.scope === 'broadcast' ? 'block' : 'none';
   document.getElementById('skillKeywords').value = (skill.keywords || []).join(', ');
   document.getElementById('skillMatchType').value = skill.match_type === 'all' ? 'all' : 'any';
-  document.getElementById('skillContent').value = skill.content || '';
+  const { requiredContent, coreRules } = splitSkillContent(skill.content);
+  document.getElementById('skillRequiredContent').value = requiredContent;
+  document.getElementById('skillCoreRules').value = coreRules;
   document.getElementById('saveSkillBtn').textContent = '수정 내용 저장';
   document.getElementById('cancelSkillEditBtn').style.display = 'inline-block';
   document.getElementById('skillTitle').scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -528,7 +576,8 @@ function resetSkillForm() {
   document.getElementById('skillBroadcastIdField').style.display = 'none';
   document.getElementById('skillKeywords').value = '';
   document.getElementById('skillMatchType').value = 'any';
-  document.getElementById('skillContent').value = '';
+  document.getElementById('skillRequiredContent').value = '';
+  document.getElementById('skillCoreRules').value = '';
   document.getElementById('saveSkillBtn').textContent = '스킬 추가';
   document.getElementById('cancelSkillEditBtn').style.display = 'none';
 }
@@ -539,9 +588,11 @@ async function saveSkill() {
   const broadcastId = document.getElementById('skillBroadcastId').value.trim();
   const keywords = document.getElementById('skillKeywords').value.split(',').map((k) => k.trim()).filter(Boolean);
   const matchType = document.getElementById('skillMatchType').value;
-  const content = document.getElementById('skillContent').value.trim();
+  const requiredContent = document.getElementById('skillRequiredContent').value;
+  const coreRules = document.getElementById('skillCoreRules').value;
+  const content = combineSkillContent(requiredContent, coreRules);
 
-  if (!title || !content) { alert('스킬 제목과 내용을 모두 입력해주세요.'); return; }
+  if (!title || !content) { alert('스킬 제목과, 필수 포함 내용·핵심 규칙 중 최소 1개는 입력해주세요.'); return; }
   if (scope === 'broadcast' && !/^\d+$/.test(broadcastId)) {
     alert('방송 전용 스킬은 라이브 아이디(숫자)를 입력해야 합니다.');
     return;
@@ -576,6 +627,8 @@ const SKILL_FIELD_ALIASES = {
   keywords: ['트리거키워드', '키워드', 'keywords'],
   matchType: ['매칭방식', 'matchtype', 'match_type'],
   content: ['스킬내용', '내용', 'content'],
+  requiredContent: ['필수포함내용', 'requiredcontent', 'required_content'],
+  coreRules: ['핵심규칙', 'corerules', 'core_rules'],
   enabled: ['사용여부', '사용', 'enabled'],
 };
 
@@ -621,7 +674,13 @@ function parseSkillRow(row) {
     ? keywordsRaw.map((k) => String(k).trim()).filter(Boolean)
     : String(keywordsRaw ?? '').split(',').map((k) => k.trim()).filter(Boolean);
   const matchType = normalizeMatchTypeValue(findSkillField(map, 'matchType'));
-  const content = String(findSkillField(map, 'content') ?? '').trim();
+  const requiredContentRaw = findSkillField(map, 'requiredContent');
+  const coreRulesRaw = findSkillField(map, 'coreRules');
+  const plainContentRaw = findSkillField(map, 'content');
+  // "필수포함내용"/"핵심규칙" 열이 있으면 그걸 합쳐서 쓰고, 없으면(예전 형식) "스킬내용" 열을 그대로 씁니다.
+  const content = (requiredContentRaw || coreRulesRaw)
+    ? combineSkillContent(String(requiredContentRaw ?? ''), String(coreRulesRaw ?? ''))
+    : String(plainContentRaw ?? '').trim();
   const enabled = normalizeEnabledValue(findSkillField(map, 'enabled'));
 
   const errors = [];
@@ -1500,6 +1559,7 @@ function bindEvents() {
 
   document.getElementById('saveBroadcastSettingsBtn').addEventListener('click', saveBroadcastSettings);
   document.getElementById('saveKeywordSettingsBtn').addEventListener('click', saveKeywordSettings);
+  document.getElementById('saveAiGuideBtn').addEventListener('click', saveAiGuideSettings);
   document.getElementById('addScheduledBtn').addEventListener('click', addScheduledMessage);
   document.getElementById('scheduledEditModeBtn').addEventListener('click', enterScheduledEditMode);
   document.getElementById('scheduledCancelEditBtn').addEventListener('click', () => {
