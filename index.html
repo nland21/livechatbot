@@ -270,6 +270,7 @@
           <div>이 페이지에서 저장하면 사무실 PC의 확장 프로그램에 최대 1분 안에 자동 반영됩니다.</div>
           <div style="display:flex; align-items:center; gap:10px;">
             <span class="device-status-pill" id="deviceStatusPill">PC 상태 확인 중...</span>
+            <button class="btn btn-outline btn-sm" id="refreshDeviceStatusBtn" title="지금 바로 PC 상태 다시 확인">🔄</button>
             <div class="save-status" id="saveStatus"></div>
           </div>
         </header>
@@ -362,6 +363,47 @@
             <p class="page-desc">AI 자동 답변이 참고할 주제별 지식입니다. 트리거 키워드를 비워두면 항상 포함되는 기본 스킬이 됩니다.</p>
 
             <div class="card">
+              <h3>🔑 Claude API 연동</h3>
+              <p class="hint" style="margin-bottom:12px;">
+                API 키는 <b>서버(Supabase Vault)에 암호화되어 저장</b>되고, 실제 호출은 서버의 Edge Function이 대신 수행합니다.
+                로컬PC(확장 프로그램)에는 API 키가 전혀 저장되지 않고, 이 페이지에서도 저장 후에는 값을 다시 볼 수 없습니다 (쓰기 전용).
+              </p>
+              <div class="field">
+                <label>Claude API 키 <span id="apiKeyStatusChip" class="chip" style="background:#f1f2f4;color:var(--sub);">확인 중...</span></label>
+                <input type="password" id="anthropicApiKeyInput" placeholder="sk-ant-api03-... (새로 입력할 때만 채워주세요)" autocomplete="off" />
+              </div>
+              <button class="btn btn-primary" id="saveApiKeyBtn">API 키 저장</button>
+
+              <div class="row-2" style="margin-top:16px;">
+                <div class="field">
+                  <label>사용 모델</label>
+                  <select id="aiModelSelect">
+                    <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5 (빠르고 저렴, 기본 추천)</option>
+                    <option value="claude-sonnet-5">Claude Sonnet 5 (더 똑똑하지만 느리고 비쌈)</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label>AI 호출 최소 간격(초)</label>
+                  <input type="text" id="aiMinIntervalSecInput" placeholder="예: 15" />
+                  <p class="hint" style="margin-top:4px;margin-bottom:0;">직전 AI 호출로부터 이 시간이 지나야 다음 질문에 다시 AI를 부릅니다. 짧을수록 빠르게 답하지만 비용이 늘어납니다.</p>
+                </div>
+              </div>
+              <div class="row-2">
+                <div class="field">
+                  <label>방송당 최대 호출 횟수</label>
+                  <input type="text" id="aiMaxCallsInput" placeholder="예: 100" />
+                  <p class="hint" style="margin-top:4px;margin-bottom:0;">한 방송에서 AI를 이 횟수만큼 부르면, 이후 질문은 답하지 않습니다 (비용 폭주 방지 안전장치).</p>
+                </div>
+                <div class="field">
+                  <label>닉네임별 재질문 대기시간(초)</label>
+                  <input type="text" id="aiCooldownInput" placeholder="예: 60" />
+                  <p class="hint" style="margin-top:4px;margin-bottom:0;">같은 시청자가 이 시간 안에 표현만 바꿔서 또 물어봐도 AI를 다시 부르지 않습니다.</p>
+                </div>
+              </div>
+              <button class="btn btn-outline" id="saveAiSettingsBtn">위 설정 저장</button>
+            </div>
+
+            <div class="card">
               <h3>🤖 AI 답변 기본 설정 (모든 답변에 항상 적용)</h3>
               <p class="hint" style="margin-bottom:12px;">
                 여기 적은 내용은 <b>스킬 매칭 여부와 상관없이 모든 AI 답변에 항상 먼저 적용</b>됩니다.
@@ -409,7 +451,6 @@
               <div class="field"><label>핵심 규칙</label><textarea id="skillCoreRules" style="min-height:90px;" placeholder="이 주제만의 판단 기준·처리 규칙을 적어주세요."></textarea></div>
               <div style="display:flex; gap:8px;">
                 <button class="btn btn-primary" id="saveSkillBtn" style="flex:1;">스킬 추가</button>
-                <button class="btn btn-outline" id="cancelSkillEditBtn" style="display:none;">수정 취소</button>
               </div>
             </div>
             <div class="card">
@@ -579,6 +620,17 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="config.js"></script>
-  <script src="app.js"></script>
+  <!-- 기능별로 분할된 스크립트 (번들러 없이 순수 script 태그라, 이 순서가 중요합니다: -->
+  <!-- common.js가 공용 유틸/세션을 정의하고, main.js가 맨 마지막에 이벤트 바인딩 + 로그인 확인을 시작합니다) -->
+  <script src="js/common.js"></script>
+  <script src="js/settings.js"></script>
+  <script src="js/scheduled.js"></script>
+  <script src="js/keyword.js"></script>
+  <script src="js/skills.js"></script>
+  <script src="js/specs.js"></script>
+  <script src="js/nextlive.js"></script>
+  <script src="js/device-status.js"></script>
+  <script src="js/accounts.js"></script>
+  <script src="js/main.js"></script>
 </body>
 </html>
