@@ -609,67 +609,68 @@
         color: var(--sub);
       }
 
-      .feature-status-bar {
+      /* ---------- 로컬PC 상태 탭: 카드 목록 ---------- */
+      #deviceCardList {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 16px;
+      }
+      .device-card { margin-bottom: 0; }
+      .device-card-header {
         display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 6px;
         flex-wrap: wrap;
-        align-items: center;
-        gap: 8px 14px;
-        padding: 10px 28px;
-        background: #fbfbfc;
-        border-bottom: 1px solid var(--border);
-        font-size: 11.5px;
-        color: var(--sub);
       }
-      .feature-status-bar .device-label {
-        font-weight: 700;
+      .device-card-name {
+        font-size: 14px;
+        font-weight: 800;
         color: var(--text);
       }
-      .feature-status-bar .device-label-btn {
-        font-weight: 700;
-        color: var(--text);
-        background: none;
-        border: none;
-        padding: 2px 6px;
-        border-radius: 6px;
-        cursor: pointer;
-        font-size: 11.5px;
-        font-family: inherit;
-      }
-      .feature-status-bar .device-label-btn:hover {
-        background: #eef0f2;
-      }
-      .feature-status-bar .device-label-btn.expanded {
-        background: var(--brand-soft);
-        color: var(--brand-dark);
-      }
-      .feature-status-bar .device-actions {
-        display: inline-flex;
-        gap: 6px;
-        align-items: center;
-      }
-      .feature-status-bar .feature-chip {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-      }
-      .feature-status-bar .feature-chip .dot {
-        width: 7px;
-        height: 7px;
-        border-radius: 50%;
-        background: #c7cad1;
-        display: inline-block;
-      }
-      .feature-status-bar .feature-chip.on .dot {
-        background: var(--brand);
-      }
-      .feature-status-bar .feature-chip.on {
-        color: var(--brand-dark);
-        font-weight: 700;
-      }
-      .feature-status-bar .feature-stale {
+      .feature-stale {
         color: var(--sub);
         font-style: italic;
+        font-size: 10.5px;
       }
+      .device-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 6px 0;
+        font-size: 12px;
+      }
+      .device-row-label {
+        color: var(--sub);
+        font-weight: 700;
+        flex-shrink: 0;
+      }
+      .device-row-value {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: 600;
+        text-align: right;
+      }
+      .device-row-divider {
+        border: none;
+        border-top: 1px dashed var(--border);
+        margin: 6px 0;
+      }
+      .status-value { font-weight: 700; }
+      .status-value.ok { color: var(--brand-dark); }
+      .status-value.off { color: var(--sub); font-weight: 600; }
+      .status-value.err { color: var(--danger); }
+      .device-card-footer {
+        display: flex;
+        gap: 8px;
+        margin-top: 10px;
+        padding-top: 12px;
+        border-top: 1px solid var(--border);
+      }
+      .device-card-footer .btn { flex: 1; }
     </style>
   </head>
   <body>
@@ -723,6 +724,9 @@
             <button class="tab-btn" data-tab="nextlive">
               <span class="icon">🔁</span> 다음 라이브 이동
             </button>
+            <button class="tab-btn" data-tab="devices">
+              <span class="icon">🖥️</span> 로컬PC 상태
+            </button>
 
             <div
               class="nav-group-title"
@@ -753,25 +757,9 @@
               자동 반영됩니다.
             </div>
             <div style="display: flex; align-items: center; gap: 10px">
-              <span class="device-status-pill" id="deviceStatusPill"
-                >PC 상태 확인 중...</span
-              >
-              <button
-                class="btn btn-outline btn-sm"
-                id="refreshDeviceStatusBtn"
-                title="지금 바로 PC 상태 다시 확인"
-              >
-                🔄
-              </button>
               <div class="save-status" id="saveStatus"></div>
             </div>
           </header>
-
-          <div
-            class="feature-status-bar"
-            id="deviceFeatureStatusBar"
-            style="display: none"
-          ></div>
 
           <main class="content">
             <!-- 예약 문구 -->
@@ -1434,6 +1422,36 @@
                 <h3>등록된 예약</h3>
                 <ul class="item-list" id="liveScheduleList"></ul>
               </div>
+            </section>
+
+            <!-- 로컬PC 상태 -->
+            <section id="tab-devices" class="tab-panel">
+              <h2>로컬PC 상태</h2>
+              <p class="page-desc">
+                지금 서버에 연동돼 있는 로컬 PC(확장 프로그램)들의 실시간
+                상태입니다. PC는 최대 20초 간격으로 상태를 보고하며, 이 화면은
+                30초마다 자동으로 새로고침됩니다.
+              </p>
+
+              <div
+                class="card"
+                style="
+                  display: flex;
+                  align-items: center;
+                  justify-content: space-between;
+                  gap: 10px;
+                  flex-wrap: wrap;
+                "
+              >
+                <span class="device-status-pill" id="devicesSummaryPill"
+                  >PC 상태 확인 중...</span
+                >
+                <button class="btn btn-outline btn-sm" id="refreshDevicesBtn">
+                  🔄 연결상태 새로고침
+                </button>
+              </div>
+
+              <div id="deviceCardList"></div>
             </section>
 
             <!-- 계정 관리 (마스터관리자 전용) -->
