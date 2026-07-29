@@ -12,7 +12,7 @@ function bindEvents() {
 
   document.getElementById('saveBroadcastSettingsBtn').addEventListener('click', saveBroadcastSettings);
   document.getElementById('saveKeywordSettingsBtn').addEventListener('click', saveKeywordSettings);
-  document.getElementById('refreshDeviceStatusBtn').addEventListener('click', async (e) => {
+  document.getElementById('refreshDevicesBtn').addEventListener('click', async (e) => {
     const btn = e.currentTarget;
     btn.disabled = true;
     btn.textContent = '⏳';
