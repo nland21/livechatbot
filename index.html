@@ -671,6 +671,87 @@
         border-top: 1px solid var(--border);
       }
       .device-card-footer .btn { flex: 1; }
+      /* ---------- 다운로드 센터 ---------- */
+      .dl-cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 16px;
+        margin-bottom: 24px;
+      }
+      .dl-card { margin-bottom: 0; }
+      .dl-meta {
+        background: #f7f8fa;
+        border-radius: 8px;
+        padding: 10px 12px;
+        margin: 10px 0;
+      }
+      .dl-meta-row {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 10px;
+        font-size: 11.5px;
+        padding: 3px 0;
+      }
+      .dl-meta-label { color: var(--sub); font-weight: 700; flex-shrink: 0; }
+      .dl-meta-value { text-align: right; word-break: break-all; }
+      .dl-upload-form {
+        border-top: 1px dashed var(--border);
+        margin-top: 14px;
+        padding-top: 12px;
+      }
+      .dl-upload-form label { margin-top: 8px; }
+      .dl-upload-form input[type="file"] {
+        font-size: 11.5px;
+        padding: 7px 8px;
+      }
+
+      /* ---------- 매뉴얼 아코디언 ---------- */
+      .manual-section { margin-bottom: 10px; }
+      .manual-section summary {
+        cursor: pointer;
+        font-size: 13.5px;
+        font-weight: 700;
+        padding: 4px 0;
+        list-style: none;
+      }
+      .manual-section summary::-webkit-details-marker { display: none; }
+      .manual-section summary::before {
+        content: "▸";
+        display: inline-block;
+        width: 16px;
+        color: var(--sub);
+      }
+      .manual-section[open] summary::before { content: "▾"; }
+      .manual-body {
+        padding: 10px 4px 4px 20px;
+        font-size: 12.5px;
+        line-height: 1.75;
+        color: var(--text);
+      }
+      .manual-body h4 {
+        font-size: 12.5px;
+        margin: 14px 0 6px;
+        color: var(--brand-dark);
+      }
+      .manual-body h4:first-child { margin-top: 0; }
+      .manual-body ol, .manual-body ul { margin: 4px 0 10px; padding-left: 20px; }
+      .manual-body li { margin-bottom: 4px; }
+      .manual-body code {
+        background: #f1f2f4;
+        border-radius: 4px;
+        padding: 1px 5px;
+        font-size: 11.5px;
+        font-family: monospace;
+      }
+      .manual-body .manual-warn {
+        background: #fff7e6;
+        border: 1px solid #f0d999;
+        border-radius: 8px;
+        padding: 8px 10px;
+        margin: 8px 0;
+        font-size: 12px;
+      }
     </style>
   </head>
   <body>
@@ -735,6 +816,14 @@
             >
               🔐 마스터관리자 전용
             </div>
+            <button
+              class="tab-btn"
+              data-tab="downloads"
+              id="downloadsTabBtn"
+              style="display: none"
+            >
+              <span class="icon">📦</span> 다운로드
+            </button>
             <button
               class="tab-btn"
               data-tab="accounts"
@@ -1454,6 +1543,252 @@
               <div id="deviceCardList"></div>
             </section>
 
+            <!-- 다운로드 센터 (마스터관리자 전용) -->
+            <section id="tab-downloads" class="tab-panel">
+              <h2>다운로드 센터</h2>
+              <p class="page-desc">
+                이 시스템을 이루는 3개 패키지의 <b>최신 버전</b>을 여기 한 곳에
+                보관합니다. 다른 PC에 확장 프로그램을 추가로 설치하거나, 새 회사가
+                이 시스템 전체를 그대로 가져다 쓰고 싶을 때 여기서 받아가면 됩니다.
+                업로드/교체는 마스터관리자만 할 수 있고, 새로 올리면 이전 파일을
+                덮어씁니다(버전은 1개만 유지).
+              </p>
+
+              <div class="dl-cards">
+                <!-- 관리자 웹페이지 -->
+                <div class="card dl-card" data-package="admin-webpage">
+                  <h3>
+                    🖥️ 관리자 웹페이지
+                    <span class="chip" style="background:#e6f0ff;color:#1a56db;">admin-webpage</span>
+                  </h3>
+                  <p class="hint">
+                    지금 로그인해서 보고 계신 <b>이 웹페이지</b>의 배포용 소스입니다
+                    (index.html + js/*). GitHub Pages 등 정적 호스팅에 올려서 씁니다.
+                  </p>
+                  <div class="dl-meta">
+                    <div class="dl-meta-row"><span class="dl-meta-label">현재 버전</span><span class="dl-meta-value dl-version">확인 중...</span></div>
+                    <div class="dl-meta-row"><span class="dl-meta-label">파일명</span><span class="dl-meta-value dl-filename">-</span></div>
+                    <div class="dl-meta-row"><span class="dl-meta-label">파일 크기</span><span class="dl-meta-value dl-filesize">-</span></div>
+                    <div class="dl-meta-row"><span class="dl-meta-label">업데이트</span><span class="dl-meta-value dl-updated">-</span></div>
+                    <div class="dl-meta-row dl-notes-row" style="display:none;"><span class="dl-meta-label">변경 메모</span><span class="dl-meta-value dl-notes"></span></div>
+                  </div>
+                  <button class="btn btn-primary btn-block dl-download-btn" disabled>⬇️ 다운로드</button>
+
+                  <div class="dl-upload-form">
+                    <label>새 버전 업로드(교체)</label>
+                    <input type="file" class="dl-file-input" accept=".zip" />
+                    <div class="row-2" style="margin-top:8px;">
+                      <div class="field"><label>버전 라벨</label><input type="text" class="dl-version-input" placeholder="예: v1.2.0" /></div>
+                      <div class="field"><label>변경 메모(선택)</label><input type="text" class="dl-notes-input" placeholder="예: 로컬PC 상태 탭 추가" /></div>
+                    </div>
+                    <button class="btn btn-outline btn-block dl-upload-btn">📤 업로드 / 교체</button>
+                  </div>
+                </div>
+
+                <!-- 로컬PC 확장 프로그램 -->
+                <div class="card dl-card" data-package="live-chat-bot">
+                  <h3>
+                    🧩 로컬PC 확장 프로그램
+                    <span class="chip" style="background:#fdeee0;color:#b5540b;">live-chat-bot</span>
+                  </h3>
+                  <p class="hint">
+                    라이브 방송 PC의 크롬에 설치하는 확장 프로그램입니다
+                    (예약문구·키워드·AI스킬 자동답변, 다음 라이브 자동이동 등).
+                  </p>
+                  <div class="dl-meta">
+                    <div class="dl-meta-row"><span class="dl-meta-label">현재 버전</span><span class="dl-meta-value dl-version">확인 중...</span></div>
+                    <div class="dl-meta-row"><span class="dl-meta-label">파일명</span><span class="dl-meta-value dl-filename">-</span></div>
+                    <div class="dl-meta-row"><span class="dl-meta-label">파일 크기</span><span class="dl-meta-value dl-filesize">-</span></div>
+                    <div class="dl-meta-row"><span class="dl-meta-label">업데이트</span><span class="dl-meta-value dl-updated">-</span></div>
+                    <div class="dl-meta-row dl-notes-row" style="display:none;"><span class="dl-meta-label">변경 메모</span><span class="dl-meta-value dl-notes"></span></div>
+                  </div>
+                  <button class="btn btn-primary btn-block dl-download-btn" disabled>⬇️ 다운로드</button>
+
+                  <div class="dl-upload-form">
+                    <label>새 버전 업로드(교체)</label>
+                    <input type="file" class="dl-file-input" accept=".zip" />
+                    <div class="row-2" style="margin-top:8px;">
+                      <div class="field"><label>버전 라벨</label><input type="text" class="dl-version-input" placeholder="예: v6.1.0" /></div>
+                      <div class="field"><label>변경 메모(선택)</label><input type="text" class="dl-notes-input" placeholder="예: 채팅 옵저버 자동복구 추가" /></div>
+                    </div>
+                    <button class="btn btn-outline btn-block dl-upload-btn">📤 업로드 / 교체</button>
+                  </div>
+                </div>
+
+                <!-- 서버 설정 -->
+                <div class="card dl-card" data-package="server-sync">
+                  <h3>
+                    🗄️ 서버 설정
+                    <span class="chip" style="background:#e6f9ef;color:#02a94d;">server-sync</span>
+                  </h3>
+                  <p class="hint">
+                    Supabase 스키마(schema.sql)와 Edge Function(ask-claude) 소스입니다.
+                    새 Supabase 프로젝트를 만들 때 SQL Editor에 그대로 실행합니다.
+                  </p>
+                  <div class="dl-meta">
+                    <div class="dl-meta-row"><span class="dl-meta-label">현재 버전</span><span class="dl-meta-value dl-version">확인 중...</span></div>
+                    <div class="dl-meta-row"><span class="dl-meta-label">파일명</span><span class="dl-meta-value dl-filename">-</span></div>
+                    <div class="dl-meta-row"><span class="dl-meta-label">파일 크기</span><span class="dl-meta-value dl-filesize">-</span></div>
+                    <div class="dl-meta-row"><span class="dl-meta-label">업데이트</span><span class="dl-meta-value dl-updated">-</span></div>
+                    <div class="dl-meta-row dl-notes-row" style="display:none;"><span class="dl-meta-label">변경 메모</span><span class="dl-meta-value dl-notes"></span></div>
+                  </div>
+                  <button class="btn btn-primary btn-block dl-download-btn" disabled>⬇️ 다운로드</button>
+
+                  <div class="dl-upload-form">
+                    <label>새 버전 업로드(교체)</label>
+                    <input type="file" class="dl-file-input" accept=".zip" />
+                    <div class="row-2" style="margin-top:8px;">
+                      <div class="field"><label>버전 라벨</label><input type="text" class="dl-version-input" placeholder="예: v2.0.0" /></div>
+                      <div class="field"><label>변경 메모(선택)</label><input type="text" class="dl-notes-input" placeholder="예: 다운로드 센터 스키마 추가" /></div>
+                    </div>
+                    <button class="btn btn-outline btn-block dl-upload-btn">📤 업로드 / 교체</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="card" style="background:#fff7e6;border-color:#f0d999;">
+                <p class="hint" style="margin:0;">
+                  <b>⚠️ 처음 이 탭을 쓰신다면</b><br/>
+                  아직 위 3개 카드는 비어있습니다. 지금 실제로 배포 중인 3개 패키지의
+                  zip 파일을 각각 한 번씩 업로드해서 "최신 버전 보관함"을 만들어두시길
+                  권해드립니다. 이후로는 코드를 수정할 때마다 여기에 최신 파일로
+                  교체해두시면, 나중에 PC를 추가하거나 다른 회사에 넘길 때 매번
+                  대화 내용을 뒤질 필요 없이 여기서 바로 받아가면 됩니다.
+                </p>
+              </div>
+
+              <h2 style="margin-top:32px;">📖 설치 · 설정 · 사용 매뉴얼</h2>
+              <p class="page-desc">
+                항목을 눌러 펼쳐보세요. 처음 설치하시는 분은 위에서부터 순서대로
+                진행하시면 됩니다.
+              </p>
+
+              <details class="manual-section card" open>
+                <summary>🗺️ 전체 구조 한눈에 보기</summary>
+                <div class="manual-body">
+                  <p>이 시스템은 서로 다른 3곳에서 동작하는 3개 패키지로 이루어져 있고, 데이터는 항상 Supabase(서버)를 중심으로 흐릅니다.</p>
+                  <ul>
+                    <li><b>server-sync (Supabase)</b> — 모든 데이터(예약문구·키워드·스킬·제품스펙·계정·PC상태·다운로드 파일)가 저장되는 중앙 서버. schema.sql 한 번 실행으로 전체 구조가 만들어집니다.</li>
+                    <li><b>admin-webpage (관리자 웹페이지)</b> — 브라우저로 접속해서 위 데이터를 등록·수정하는 화면. 정적 파일이라 아무 웹 호스팅에나 올리면 됩니다(추천: GitHub Pages, 무료).</li>
+                    <li><b>live-chat-bot (로컬PC 확장 프로그램)</b> — 실제로 라이브 방송 중인 PC의 크롬에 설치. 서버 데이터를 1분마다 받아와서, 채팅을 감시하고 자동으로 답변을 올립니다.</li>
+                  </ul>
+                  <p>흐름: <code>관리자 웹페이지에서 저장</code> → <code>Supabase에 저장</code> → <code>로컬PC가 1분마다 동기화</code> → <code>실제 라이브 채팅에 자동 반영</code>. 그래서 설치 순서도 항상 <b>서버 → 웹페이지 → 로컬PC</b> 순서를 권장합니다.</p>
+                </div>
+              </details>
+
+              <details class="manual-section card">
+                <summary>1단계 · 서버(server-sync / Supabase) 설치</summary>
+                <div class="manual-body">
+                  <h4>새 Supabase 프로젝트 만들기</h4>
+                  <ol>
+                    <li><a href="https://supabase.com" target="_blank" rel="noopener">supabase.com</a>에서 새 프로젝트를 생성합니다.</li>
+                    <li>좌측 메뉴 <b>SQL Editor</b>로 들어가서, 이 탭 위쪽에서 내려받은 <code>server-sync</code>의 <code>schema.sql</code> 내용을 전부 붙여넣고 실행합니다.</li>
+                    <li><b>Authentication &gt; Sign In / Providers</b>에서 "Confirm email(이메일 확인)" 옵션을 꺼둡니다. (안 꺼두면 새 계정을 만들어도 이메일 인증을 눌러야만 로그인이 됩니다)</li>
+                  </ol>
+                  <h4>마스터관리자 계정 만들기</h4>
+                  <ol>
+                    <li><b>Authentication &gt; Users &gt; Add user &gt; Create new user</b>에서 계정을 직접 만듭니다. ("Auto Confirm User" 옵션이 있으면 켜주세요)</li>
+                    <li>schema.sql 맨 아래 "마스터관리자 최초 1회 부트스트랩" 부분의 이메일을, 방금 만든 계정 이메일로 바꿔서 그 구문만 다시 한 번 SQL Editor에서 실행합니다. (이후 계정은 마스터관리자가 로그인해서 "계정 관리" 탭에서 직접 만들 수 있습니다)</li>
+                  </ol>
+                  <h4>Claude API 키 연동 (Edge Function)</h4>
+                  <ol>
+                    <li>Supabase CLI로 이 프로젝트를 <code>supabase link</code>한 뒤, <code>ask-claude</code> Edge Function을 배포합니다 (<code>supabase functions deploy ask-claude</code>).</li>
+                    <li>웹페이지에 로그인 후 "스킬 관리" 탭 &gt; Claude API 연동에서 API 키를 등록합니다. (Vault에 암호화 저장되며, 브라우저에는 절대 남지 않습니다)</li>
+                  </ol>
+                  <div class="manual-warn">
+                    ⚠️ <b>Storage 버킷(releases)이 이미 있는 프로젝트에 다시 실행하는 경우</b>: schema.sql은 <code>on conflict do nothing</code>으로 안전하게 재실행되도록 만들어져 있어서, 이미 실행한 적 있는 프로젝트에 다시 실행해도 데이터가 지워지지 않습니다.
+                  </div>
+                </div>
+              </details>
+
+              <details class="manual-section card">
+                <summary>2단계 · 관리자 웹페이지(admin-webpage) 설치</summary>
+                <div class="manual-body">
+                  <ol>
+                    <li>이 탭에서 <b>admin-webpage</b> 최신 zip을 내려받아 압축을 풉니다.</li>
+                    <li><code>config.js</code> 파일을 열어 방금 만든 Supabase 프로젝트의 <code>url</code>과 <code>anonKey</code>(Project Settings &gt; API에서 확인)로 값을 바꿔줍니다.</li>
+                    <li>전체 폴더를 정적 호스팅에 올립니다. 가장 간단한 방법은 GitHub 저장소를 하나 만들어 이 폴더를 올리고, 저장소 설정 &gt; Pages에서 배포하는 것입니다.</li>
+                    <li>배포된 주소로 접속해서 1단계에서 만든 마스터관리자 계정으로 로그인합니다.</li>
+                  </ol>
+                  <p>이후로는 새 계정 만들기(관리자/웹관리자/로컬매니저), 예약문구·키워드·스킬·제품스펙 등록, 다음 라이브 예약, 로컬PC 상태 확인을 전부 이 화면에서 합니다.</p>
+                </div>
+              </details>
+
+              <details class="manual-section card">
+                <summary>3단계 · 로컬PC 확장 프로그램(live-chat-bot) 설치</summary>
+                <div class="manual-body">
+                  <h4>설치</h4>
+                  <ol>
+                    <li>이 탭에서 <b>live-chat-bot</b> 최신 zip을 내려받아, 라이브 방송에 쓸 PC에서 압축을 풉니다.</li>
+                    <li>크롬 주소창에 <code>chrome://extensions</code> 입력 &gt; 우측 상단 "개발자 모드" 켜기 &gt; "압축해제된 확장 프로그램을 로드합니다" &gt; 압축 푼 폴더 선택.</li>
+                  </ol>
+                  <h4>서버 연동 로그인</h4>
+                  <ol>
+                    <li>확장 프로그램 아이콘 &gt; 옵션(⚙️) 페이지를 엽니다.</li>
+                    <li>"서버 연동" 탭에서 Supabase 주소/anon key, 그리고 <b>로컬매니저(또는 관리자) 계정</b>으로 로그인합니다. (웹관리자 계정은 로컬PC 로그인이 안 됩니다)</li>
+                    <li>로그인 직후 1회 동기화가 자동 실행되어, 서버에 등록된 예약문구·키워드·스킬 등을 받아옵니다.</li>
+                  </ol>
+                  <h4>화면 요소 지정 (PC마다 최초 1회)</h4>
+                  <ol>
+                    <li>네이버 쇼핑라이브 관리툴 상황판(<code>tool.shoppinglive.naver.com/broadcasts/.../dashboard</code>) 페이지를 엽니다.</li>
+                    <li>옵션 페이지 "연결 설정" 탭에서 채팅 입력창 / 전송 버튼 / 채팅 목록 / 라이브 진행시간 표시 / 시청자 메시지 마커(☆) / 닉네임 영역을 순서대로 클릭해서 지정합니다.</li>
+                    <li>"테스트 전송"으로 실제 채팅창에 메시지가 올라가는지 확인합니다.</li>
+                  </ol>
+                  <h4>시작</h4>
+                  <ol>
+                    <li>필요한 기능(예약문구/키워드/AI 자동답변)을 켜고 <b>▶ 시작</b>을 누릅니다. 이후로는 관리자 웹페이지의 "로컬PC 상태" 탭에서 원격으로 시작/정지/로그아웃도 가능합니다.</li>
+                  </ol>
+                </div>
+              </details>
+
+              <details class="manual-section card">
+                <summary>탭별 사용법 요약</summary>
+                <div class="manual-body">
+                  <ul>
+                    <li><b>📝 예약 문구</b> — 정해진 간격으로 반복 게시할 문구 관리. 순차/무작위 방식 선택 가능.</li>
+                    <li><b>💬 키워드 자동답변</b> — 특정 단어가 채팅에 나오면 미리 정한 답변을 자동으로 게시. 쉼표로 여러 키워드를 넣을 수 있고, "하나라도 포함(OR)" / "모두 포함(AND)" 매칭 방식을 고를 수 있습니다.</li>
+                    <li><b>🧩 스킬 관리</b> — 키워드에 안 걸린 질문을 Claude AI가 답할 때 참고하는 주제별 지식. 공통 스킬과 특정 방송 전용 스킬을 나눠 등록할 수 있습니다.</li>
+                    <li><b>💻 제품 스펙</b> — 모델별 스펙을 등록해두면 AI가 정확한 스펙으로만 답변(추측 금지).</li>
+                    <li><b>🔁 다음 라이브 이동</b> — 라이브 종료가 감지되면 등록해둔 시각에 맞춰 다음 라이브 상황판으로 자동 이동.</li>
+                    <li><b>🖥️ 로컬PC 상태</b> — 지금 연동된 모든 PC의 접속 상태, 기능 켜짐/꺼짐, 자동채팅 실행 여부를 실시간으로 확인하고, 원격 시작/정지/로그아웃까지 가능.</li>
+                    <li><b>📦 다운로드</b>(지금 이 탭) — 3개 패키지 최신 버전 보관 및 이 매뉴얼. 마스터관리자 전용.</li>
+                    <li><b>👤 계정 관리</b>(마스터관리자 전용) — 관리자/웹관리자/로컬매니저 계정 생성·역할변경·강제로그아웃.</li>
+                  </ul>
+                </div>
+              </details>
+
+              <details class="manual-section card">
+                <summary>🏢 다른 PC 추가 / 신규 회사 도입 체크리스트</summary>
+                <div class="manual-body">
+                  <h4>기존 회사에 방송 PC만 추가하는 경우</h4>
+                  <ol>
+                    <li>3단계(로컬PC 확장 프로그램 설치)만 새 PC에서 그대로 반복합니다. 서버·웹페이지는 이미 있으니 새로 만들 필요 없습니다.</li>
+                    <li>새 PC용 로컬매니저 계정이 필요하면, 마스터관리자가 "계정 관리" 탭에서 하나 더 만들어줍니다.</li>
+                  </ol>
+                  <h4>완전히 새로운 회사가 이 시스템 전체를 도입하는 경우</h4>
+                  <ol>
+                    <li>1 → 2 → 3단계를 처음부터 그대로 진행합니다 (새 Supabase 프로젝트 + 새 웹페이지 배포 + 새 확장 프로그램 설치).</li>
+                    <li>제품/브랜드가 다르면 "스킬 관리"와 "제품 스펙"에 등록하는 내용만 새 회사 것으로 채우면 됩니다 — 코드 자체는 특정 브랜드에 종속돼 있지 않습니다.</li>
+                    <li>회사마다 완전히 독립된 Supabase 프로젝트를 쓰는 구조라서, 데이터가 서로 섞이지 않습니다.</li>
+                  </ol>
+                </div>
+              </details>
+
+              <details class="manual-section card">
+                <summary>🔧 문제가 생겼을 때 (트러블슈팅 요약)</summary>
+                <div class="manual-body">
+                  <p>크롬 F12 콘솔에 진단 로그가 이미 심어져 있습니다. 순서대로 확인하면 어느 단계에서 막혔는지 바로 특정됩니다.</p>
+                  <ul>
+                    <li><code>👀 채팅 목록 감시 시작</code>이 안 보임 → 옵션 페이지에서 "채팅 목록" 요소를 다시 지정</li>
+                    <li><code>💬 시청자 메시지 확인</code>이 안 보임 → ☆ 마커 선택자가 화면 구조 변경으로 깨졌을 가능성 (재지정 필요)</li>
+                    <li><code>🔑 키워드 매칭</code>이 안 뜨는데 채팅은 인식됨 → 등록된 키워드/매칭방식(AND·OR)을 다시 확인</li>
+                    <li><code>🤖 AI에게 질문 전달</code>이 안 뜸 → 옵션 페이지에서 "AI 자동 답변" 토글, 그리고 웹페이지의 API 키 상태(✅ 설정됨) 확인</li>
+                    <li><code>🔴 로그인 세션이 끊긴 것으로 보입니다</code> → 관리툴 탭에서 네이버 재로그인 필요 (자동 재로그인은 보안상 지원하지 않습니다)</li>
+                  </ul>
+                </div>
+              </details>
+            </section>
+
             <!-- 계정 관리 (마스터관리자 전용) -->
             <section id="tab-accounts" class="tab-panel">
               <h2>계정 관리</h2>
@@ -1552,6 +1887,7 @@
     <script src="js/nextlive.js"></script>
     <script src="js/device-status.js"></script>
     <script src="js/accounts.js"></script>
+    <script src="js/downloads.js"></script>
     <script src="js/main.js"></script>
   </body>
 </html>
