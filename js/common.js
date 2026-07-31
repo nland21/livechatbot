@@ -99,6 +99,7 @@ async function afterLogin(session) {
 
   const isMaster = currentUserRole === 'master_admin';
   document.getElementById('accountsTabBtn').style.display = isMaster ? 'flex' : 'none';
+  document.getElementById('downloadsTabBtn').style.display = isMaster ? 'flex' : 'none';
   document.getElementById('masterGroupTitle').style.display = isMaster ? 'block' : 'none';
 
   populateTimeSelects();
@@ -108,6 +109,7 @@ async function afterLogin(session) {
   await loadAiKeyStatus();
   if (currentUserRole === 'master_admin') {
     await loadAccounts();
+    await loadReleaseFiles();
   }
 
   await refreshDeviceStatus();

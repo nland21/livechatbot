@@ -58,6 +58,8 @@ function bindEvents() {
 
   const addAccountBtn = document.getElementById('addAccountBtn');
   if (addAccountBtn) addAccountBtn.addEventListener('click', createAccount);
+
+  bindDownloadCenterEvents();
 }
 
 // 모든 기능별 js 파일이 위에서 이미 로드/정의된 뒤이므로, 이제 안전하게 세션 확인을 시작합니다.
