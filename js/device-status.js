@@ -179,9 +179,27 @@ function renderDeviceCards(devices) {
           ${hasRunningInfo ? `<button class="btn btn-outline btn-sm device-run-toggle-btn" data-device="${escapeHtml(d.device_name)}" data-command="${d.bot_running ? 'stop' : 'start'}">${d.bot_running ? '⏹️ 정지' : '▶️ 시작'}</button>` : ''}
         </span>
       </div>
-      <div class="device-row"><span class="device-row-label">예약 문구</span>${statusValueHtml(scheduled)}</div>
-      <div class="device-row"><span class="device-row-label">키워드 채팅</span>${statusValueHtml(keyword)}</div>
-      <div class="device-row"><span class="device-row-label">AI스킬 채팅</span><span class="device-row-value">${statusValueHtml(ai)}${skillsNote ? `<span style="color:var(--sub);font-weight:400;">${escapeHtml(skillsNote)}</span>` : ''}</span></div>
+      <div class="device-row">
+        <span class="device-row-label">예약 문구</span>
+        <span class="device-row-value">
+          ${statusValueHtml(scheduled)}
+          <button class="btn btn-outline btn-sm device-feature-toggle-btn" data-device="${escapeHtml(d.device_name)}" data-feature="scheduled" data-next="${d.scheduled_enabled ? 'false' : 'true'}">${d.scheduled_enabled ? '⚪ 끄기' : '🟢 켜기'}</button>
+        </span>
+      </div>
+      <div class="device-row">
+        <span class="device-row-label">키워드 채팅</span>
+        <span class="device-row-value">
+          ${statusValueHtml(keyword)}
+          <button class="btn btn-outline btn-sm device-feature-toggle-btn" data-device="${escapeHtml(d.device_name)}" data-feature="keyword" data-next="${d.keyword_enabled ? 'false' : 'true'}">${d.keyword_enabled ? '⚪ 끄기' : '🟢 켜기'}</button>
+        </span>
+      </div>
+      <div class="device-row">
+        <span class="device-row-label">AI스킬 채팅</span>
+        <span class="device-row-value">
+          ${statusValueHtml(ai)}${skillsNote ? `<span style="color:var(--sub);font-weight:400;">${escapeHtml(skillsNote)}</span>` : ''}
+          <button class="btn btn-outline btn-sm device-feature-toggle-btn" data-device="${escapeHtml(d.device_name)}" data-feature="ai" data-next="${d.ai_enabled ? 'false' : 'true'}">${d.ai_enabled ? '⚪ 끄기' : '🟢 켜기'}</button>
+        </span>
+      </div>
 
       <hr class="device-row-divider" />
 
@@ -218,6 +236,13 @@ function renderDeviceCards(devices) {
     btn.addEventListener('click', () => deleteDeviceStatus(btn.dataset.device));
   });
 
+  wrap.querySelectorAll('.device-feature-toggle-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const next = btn.dataset.next === 'true';
+      sendFeatureToggle(btn.dataset.device, btn.dataset.feature, next);
+    });
+  });
+
   // "라이브 : 없음 [✏️ 수정]" → 클릭하면 바로 아래에 입력창이 펼쳐집니다.
   wrap.querySelectorAll('.device-live-edit-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -246,6 +271,28 @@ function renderDeviceCards(devices) {
       form.style.display = 'none';
     });
   });
+}
+
+// 예약문구/키워드/AI스킬 채팅을 로컬PC 없이도 웹페이지에서 바로 켜고 끕니다.
+// 로컬PC 옵션 페이지의 토글과 같은 값(scheduledEnabled/keywordEnabled/aiEnabled)을
+// 원격으로 바꾸는 것이라, 로컬PC에서 다시 꺼거나 켜면 그 값이 우선합니다(양쪽 다 조작 가능).
+const FEATURE_TOGGLE_LABELS = { scheduled: '예약 문구', keyword: '키워드 채팅', ai: 'AI스킬 채팅' };
+const FEATURE_TOGGLE_COLUMNS = {
+  scheduled: 'remote_scheduled_enabled',
+  keyword: 'remote_keyword_enabled',
+  ai: 'remote_ai_enabled',
+};
+async function sendFeatureToggle(deviceName, feature, nextValue) {
+  const column = FEATURE_TOGGLE_COLUMNS[feature];
+  if (!column) return;
+  const label = FEATURE_TOGGLE_LABELS[feature] || feature;
+  const { error } = await supabaseClient
+    .from('device_status')
+    .update({ [column]: nextValue })
+    .eq('device_name', deviceName);
+  if (error) { showSaveStatus(`${label} 원격 ${nextValue ? '켜기' : '끄기'} 요청 실패: ` + error.message, 'err'); return; }
+  showSaveStatus(`"${deviceName}"의 ${label}을(를) ${nextValue ? '🟢 켜기' : '⚪ 끄기'} 요청함 ✓ (최대 20초 후 반영)`, 'ok');
+  await refreshDeviceStatus();
 }
 
 // 해당 PC를 특정 라이브 상황판으로 강제 이동시킵니다. 다양한 이유(다음 라이브 자동이동
