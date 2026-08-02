@@ -144,6 +144,7 @@ function renderDeviceCards(devices) {
     const hasRunningInfo = d.bot_running !== null && d.bot_running !== undefined;
     const skillsNote = d.ai_enabled && d.enabled_skills_count !== null && d.enabled_skills_count !== undefined
       ? ` (스킬 ${d.enabled_skills_count}개 활성)` : '';
+    const reloginConfigured = !!d.relogin_configured;
 
     const card = document.createElement('div');
     card.className = 'card device-card';
@@ -157,6 +158,7 @@ function renderDeviceCards(devices) {
       <div class="device-row"><span class="device-row-label">로컬 PC 이름</span><span class="device-row-value">${escapeHtml(d.device_name)}</span></div>
       <div class="device-row"><span class="device-row-label">로컬 PC 계정</span><span class="device-row-value">${escapeHtml(d.account_email || '확인 불가')}</span></div>
       <div class="device-row"><span class="device-row-label">라이브 상황판</span>${statusValueHtml(dash)}</div>
+      <div class="device-row"><span class="device-row-label">재로그인 설정</span><span class="status-value ${reloginConfigured ? 'ok' : 'off'}">${reloginConfigured ? '🔑 설정됨' : '⚪ 설정 안 됨'}</span></div>
 
       <hr class="device-row-divider" />
 
@@ -176,6 +178,10 @@ function renderDeviceCards(devices) {
       <div class="device-row"><span class="device-row-label">접속시간</span><span class="device-row-value">${escapeHtml(formatFullDatetime(d.last_seen_at))}</span></div>
 
       <div class="device-card-footer">
+        <button class="btn btn-outline btn-sm device-reload-btn" data-device="${escapeHtml(d.device_name)}" title="이 PC의 브라우저 탭을 새로고침합니다 (라이브 상황판 연결이 끊겼을 때)">🔄 새로고침</button>
+        <button class="btn btn-outline btn-sm device-login-btn" data-device="${escapeHtml(d.device_name)}" title="${reloginConfigured ? '재로그인 단계를 순서대로 실행합니다' : '로컬PC 옵션 페이지에서 재로그인 단계를 먼저 지정해주세요'}" ${reloginConfigured ? '' : 'disabled'}>🔑 로그인</button>
+      </div>
+      <div class="device-card-footer">
         <button class="btn btn-outline btn-sm device-logout-btn" data-device="${escapeHtml(d.device_name)}">🔌 로그아웃</button>
         <button class="btn-danger-outline device-delete-btn" data-device="${escapeHtml(d.device_name)}">DB삭제</button>
       </div>
@@ -186,6 +192,15 @@ function renderDeviceCards(devices) {
   wrap.querySelectorAll('.device-run-toggle-btn').forEach((btn) => {
     btn.addEventListener('click', () => sendRemoteRunCommand(btn.dataset.device, btn.dataset.command));
   });
+  wrap.querySelectorAll('.device-reload-btn').forEach((btn) => {
+    btn.addEventListener('click', () => sendRemoteRunCommand(btn.dataset.device, 'reload'));
+  });
+  wrap.querySelectorAll('.device-login-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      if (!confirm(`"${btn.dataset.device}" PC에서 등록해둔 순서대로 재로그인을 실행할까요?`)) return;
+      sendRemoteRunCommand(btn.dataset.device, 'login');
+    });
+  });
   wrap.querySelectorAll('.device-logout-btn').forEach((btn) => {
     btn.addEventListener('click', () => requestDeviceLogout(btn.dataset.device));
   });
@@ -194,10 +209,10 @@ function renderDeviceCards(devices) {
   });
 }
 
-// 해당 PC에 "▶ 시작"/"■ 정지" 신호를 보냅니다. 그 PC가 다음 상태 보고 주기(최대 20초 이내)에
-// 이 신호를 확인해서 실제로 자동채팅을 시작/정지합니다.
+// 해당 PC에 "▶ 시작"/"■ 정지"/"🔄 새로고침"/"🔑 로그인" 신호를 보냅니다. 그 PC가 다음 상태
+// 보고 주기(최대 20초 이내)에 이 신호를 확인해서 실제로 실행합니다.
 async function sendRemoteRunCommand(deviceName, command) {
-  const label = command === 'start' ? '시작' : '정지';
+  const label = { start: '시작', stop: '정지', reload: '새로고침', login: '로그인' }[command] || command;
   const { error } = await supabaseClient
     .from('device_status')
     .update({ remote_command: command })
