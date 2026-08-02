@@ -98,7 +98,7 @@ function connectionStatusOf(d, stale) {
 function dashboardStatusOf(d, stale) {
   if (!d.current_broadcast_id) return { emoji: '⚪', text: '선택되어 있지 않음', cls: 'off' };
   if (d.session_ok === false || stale) return { emoji: '🔴', text: '오류', cls: 'err' };
-  return { emoji: '🟢', text: `선택되어 활성화 중 (라이브 ${d.current_broadcast_id})`, cls: 'ok' };
+  return { emoji: '🟢', text: '선택되어 활성화 중', cls: 'ok' };
 }
 
 // PC 자체가 세션 오류 상태(접속 상태=🔴)라면, 예약문구/키워드/AI 토글값이 켜져 있어도
@@ -149,6 +149,16 @@ function renderDeviceCards(devices) {
     const card = document.createElement('div');
     card.className = 'card device-card';
     card.innerHTML = `
+      <div class="device-live-row">
+        <span class="device-live-label">라이브 : <b>${d.current_broadcast_id ? escapeHtml(String(d.current_broadcast_id)) : '없음'}</b></span>
+        <button class="btn btn-outline btn-sm device-live-edit-btn" data-device="${escapeHtml(d.device_name)}">✏️ 수정</button>
+      </div>
+      <div class="device-live-edit-form" data-device="${escapeHtml(d.device_name)}" style="display:none;">
+        <input type="text" class="device-live-input" placeholder="이동할 라이브 ID 입력 (예: 1991345)" inputmode="numeric" />
+        <button class="btn btn-primary btn-sm device-live-confirm-btn" data-device="${escapeHtml(d.device_name)}">확인</button>
+        <button class="btn btn-outline btn-sm device-live-cancel-btn">취소</button>
+      </div>
+
       <div class="device-card-header">
         <span class="device-card-name">🖥️ ${escapeHtml(d.device_name)}</span>
         ${stale ? `<span class="feature-stale">정보 오래됨 · ${escapeHtml(formatRelativeTime(d.last_seen_at))}</span>` : ''}
@@ -207,6 +217,48 @@ function renderDeviceCards(devices) {
   wrap.querySelectorAll('.device-delete-btn').forEach((btn) => {
     btn.addEventListener('click', () => deleteDeviceStatus(btn.dataset.device));
   });
+
+  // "라이브 : 없음 [✏️ 수정]" → 클릭하면 바로 아래에 입력창이 펼쳐집니다.
+  wrap.querySelectorAll('.device-live-edit-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const form = wrap.querySelector(`.device-live-edit-form[data-device="${CSS.escape(btn.dataset.device)}"]`);
+      if (!form) return;
+      form.style.display = form.style.display === 'none' ? 'flex' : 'none';
+      if (form.style.display === 'flex') form.querySelector('.device-live-input').focus();
+    });
+  });
+  wrap.querySelectorAll('.device-live-cancel-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      btn.closest('.device-live-edit-form').style.display = 'none';
+    });
+  });
+  wrap.querySelectorAll('.device-live-confirm-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const form = btn.closest('.device-live-edit-form');
+      const input = form.querySelector('.device-live-input');
+      const broadcastId = input.value.trim();
+      if (!broadcastId) { alert('이동할 라이브 ID를 입력해주세요.'); return; }
+      if (!/^\d+$/.test(broadcastId)) {
+        if (!confirm('라이브 ID는 보통 숫자로만 이뤄져 있습니다. 입력하신 값이 맞는지 확인해주세요. 그래도 진행할까요?')) return;
+      }
+      if (!confirm(`"${btn.dataset.device}" PC를 라이브 ${broadcastId}(으)로 이동시킬까요?`)) return;
+      sendGotoLive(btn.dataset.device, broadcastId);
+      form.style.display = 'none';
+    });
+  });
+}
+
+// 해당 PC를 특정 라이브 상황판으로 강제 이동시킵니다. 다양한 이유(다음 라이브 자동이동
+// 실패, 관리자가 급하게 다른 라이브로 옮기고 싶은 경우 등)로 수동 개입이 필요할 때 씁니다.
+// remote_command='goto' + remote_goto_broadcast_id로 목적지를 함께 전달합니다.
+async function sendGotoLive(deviceName, broadcastId) {
+  const { error } = await supabaseClient
+    .from('device_status')
+    .update({ remote_command: 'goto', remote_goto_broadcast_id: broadcastId })
+    .eq('device_name', deviceName);
+  if (error) { showSaveStatus('라이브 이동 요청 실패: ' + error.message, 'err'); return; }
+  showSaveStatus(`"${deviceName}"을(를) 라이브 ${broadcastId}(으)로 이동 요청함 ✓ (최대 20초 후 반영)`, 'ok');
+  await refreshDeviceStatus();
 }
 
 // 해당 PC에 "▶ 시작"/"■ 정지"/"🔄 새로고침"/"🔑 로그인" 신호를 보냅니다. 그 PC가 다음 상태
