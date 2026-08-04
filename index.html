@@ -1493,8 +1493,22 @@
               </div>
 
               <div class="card">
-                <h3>등록된 제품 스펙</h3>
+                <h3 style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+                  <span>등록된 제품 스펙</span>
+                  <span style="display:flex; align-items:center; gap:8px; font-size:12px; font-weight:400;">
+                    <label style="display:flex; align-items:center; gap:4px; cursor:pointer;">
+                      <input type="checkbox" id="specSelectAllCheckbox" />
+                      전체선택
+                    </label>
+                    <span class="hint" id="specSelectionCount" style="margin:0;">0개 선택</span>
+                  </span>
+                </h3>
                 <div id="specList"></div>
+                <div style="display:flex; gap:8px; margin-top:10px;">
+                  <button class="btn btn-outline btn-sm" id="exportSpecJsonBtn">📄 JSON 내보내기</button>
+                  <button class="btn btn-outline btn-sm" id="exportSpecXlsxBtn">📊 Excel 내보내기</button>
+                  <span class="hint" style="margin:0; align-self:center;">선택한 항목이 있으면 선택한 것만, 없으면 전체를 내보냅니다.</span>
+                </div>
               </div>
             </section>
 
