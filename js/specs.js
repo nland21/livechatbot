@@ -19,17 +19,19 @@ function renderSpecList() {
   if (!container) return;
   if (productSpecs.length === 0) {
     container.innerHTML = '<p class="hint">등록된 제품 스펙이 없습니다.</p>';
+    updateSpecSelectionCount();
     return;
   }
   container.innerHTML = '';
   productSpecs.forEach((spec) => {
     const div = document.createElement('div');
-    div.style.cssText = 'border:1px solid var(--border); border-radius:8px; padding:12px; margin-bottom:8px;';
+    div.style.cssText = 'border:1px solid var(--border); border-radius:8px; padding:12px; margin-bottom:8px; display:flex; gap:10px;';
     const specLine = [spec.os, spec.cpu, spec.resolution, spec.memory, spec.storage, spec.color].filter(Boolean).join(' · ');
     const extraKeys = spec.extra && typeof spec.extra === 'object' ? Object.keys(spec.extra) : [];
     const extraLine = extraKeys.map((k) => `${k}=${spec.extra[k]}`).join(', ');
     div.innerHTML = `
-      <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
+      <input type="checkbox" class="spec-select-checkbox" data-id="${spec.id}" style="margin-top:3px;" />
+      <div style="flex:1; display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
         <div>
           <b>${escapeHtml(spec.model_name)}</b>
           <div class="hint" style="margin-top:4px;">${escapeHtml(specLine || '(스펙 미입력)')}</div>
@@ -43,8 +45,67 @@ function renderSpecList() {
     `;
     div.querySelector('.spec-edit-btn').addEventListener('click', () => startEditSpec(spec));
     div.querySelector('.spec-delete-btn').addEventListener('click', () => deleteSpec(spec));
+    div.querySelector('.spec-select-checkbox').addEventListener('change', updateSpecSelectionCount);
     container.appendChild(div);
   });
+  updateSpecSelectionCount();
+}
+
+function getSelectedSpecIds() {
+  return Array.from(document.querySelectorAll('.spec-select-checkbox:checked')).map((el) => el.dataset.id);
+}
+
+function updateSpecSelectionCount() {
+  const countEl = document.getElementById('specSelectionCount');
+  const selectAllBox = document.getElementById('specSelectAllCheckbox');
+  if (!countEl) return;
+  const total = productSpecs.length;
+  const selected = getSelectedSpecIds().length;
+  countEl.textContent = `${selected}개 선택 (전체 ${total}개)`;
+  if (selectAllBox) selectAllBox.checked = total > 0 && selected === total;
+}
+
+// 체크된 항목이 있으면 그것만, 하나도 없으면 전체를 내보냅니다.
+function getSpecsForExport() {
+  const selectedIds = new Set(getSelectedSpecIds());
+  return selectedIds.size > 0 ? productSpecs.filter((s) => selectedIds.has(String(s.id))) : productSpecs;
+}
+
+function specToExportRow(spec) {
+  return {
+    modelName: spec.model_name,
+    os: spec.os || '',
+    cpu: spec.cpu || '',
+    resolution: spec.resolution || '',
+    memory: spec.memory || '',
+    storage: spec.storage || '',
+    color: spec.color || '',
+    extra: spec.extra && typeof spec.extra === 'object' ? spec.extra : {},
+  };
+}
+
+function exportSpecsAsJson() {
+  const specs = getSpecsForExport();
+  if (specs.length === 0) { alert('내보낼 제품 스펙이 없습니다.'); return; }
+  const rows = specs.map(specToExportRow);
+  downloadBlob(`제품스펙_${specs.length}개.json`, JSON.stringify(rows, null, 2), 'application/json;charset=utf-8');
+  showSaveStatus(`${specs.length}개 모델을 JSON으로 내보냈습니다 ✓`, 'ok');
+}
+
+function exportSpecsAsXlsx() {
+  const specs = getSpecsForExport();
+  if (specs.length === 0) { alert('내보낼 제품 스펙이 없습니다.'); return; }
+  const headers = ['모델명', '운영체제', 'CPU', '해상도', '메모리', '저장장치', '색상', '기타'];
+  const rows = specs.map((spec) => {
+    const row = specToExportRow(spec);
+    const extraStr = Object.keys(row.extra).length ? JSON.stringify(row.extra) : '';
+    return [row.modelName, row.os, row.cpu, row.resolution, row.memory, row.storage, row.color, extraStr];
+  });
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '제품스펙');
+  XLSX.writeFile(wb, `제품스펙_${specs.length}개.xlsx`);
+  showSaveStatus(`${specs.length}개 모델을 Excel로 내보냈습니다 ✓`, 'ok');
 }
 
 function switchSpecMode(mode) {

@@ -55,6 +55,12 @@ function bindEvents() {
   document.getElementById('parseSpecJsonBtn').addEventListener('click', parseSpecJsonInput);
   document.getElementById('importSpecsBtn').addEventListener('click', importSpecsFromJson);
   document.getElementById('downloadSpecJsonSampleBtn').addEventListener('click', downloadSpecJsonSample);
+  document.getElementById('specSelectAllCheckbox').addEventListener('change', (e) => {
+    document.querySelectorAll('.spec-select-checkbox').forEach((box) => { box.checked = e.target.checked; });
+    updateSpecSelectionCount();
+  });
+  document.getElementById('exportSpecJsonBtn').addEventListener('click', exportSpecsAsJson);
+  document.getElementById('exportSpecXlsxBtn').addEventListener('click', exportSpecsAsXlsx);
 
   const addAccountBtn = document.getElementById('addAccountBtn');
   if (addAccountBtn) addAccountBtn.addEventListener('click', createAccount);
