@@ -10,13 +10,17 @@ function escapeHtml(str) {
 }
 
 function getSortedSkills(skills) {
-  return [...skills].sort((a, b) => (b.keywords?.length || 0) - (a.keywords?.length || 0));
+  return [...skills].sort((a, b) =>
+    (a.priority ?? 0) - (b.priority ?? 0) || (b.keywords?.length || 0) - (a.keywords?.length || 0),
+  );
 }
+
+let selectedSkillIds = new Set(); // 내보내기용 선택 상태
 
 let expandedSkillIds = new Set();   // 지금 펼쳐진 스킬 카드들
 let inlineEditingSkillId = null;    // 지금 카드 안에서 바로 수정 중인 스킬
 
-function buildSkillCard(skill, displayIndex) {
+function buildSkillCard(skill, displayIndex, groupSkills) {
   const card = document.createElement('div');
   card.className = 'card';
   card.style.opacity = skill.enabled ? '1' : '0.5';
@@ -35,11 +39,19 @@ function buildSkillCard(skill, displayIndex) {
     ? skill.keywords.map((k) => `<span class="chip">${escapeHtml(k)}</span>`).join('')
     : '<span class="chip" style="background:var(--brand-soft);color:var(--brand-dark);font-weight:700;">항상 포함</span>';
 
+  const isFirst = displayIndex === 0;
+  const isLast = displayIndex === groupSkills.length - 1;
+
   card.innerHTML = `
     <div class="skill-card-header" style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;cursor:pointer;">
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <input type="checkbox" class="skill-select-checkbox" data-id="${skill.id}" style="margin:0;" />
         <span style="display:inline-block;width:12px;color:var(--sub);">${isExpanded ? '▾' : '▸'}</span>
         <span class="priority-badge">우선순위 ${displayIndex + 1}</span>
+        <span style="display:flex;flex-direction:column;gap:0;">
+          <button class="skill-move-up" title="우선순위 올리기" ${isFirst ? 'disabled' : ''} style="border:none;background:none;cursor:${isFirst ? 'default' : 'pointer'};line-height:10px;font-size:10px;color:${isFirst ? 'var(--border)' : 'var(--sub)'};padding:0;">▲</button>
+          <button class="skill-move-down" title="우선순위 내리기" ${isLast ? 'disabled' : ''} style="border:none;background:none;cursor:${isLast ? 'default' : 'pointer'};line-height:10px;font-size:10px;color:${isLast ? 'var(--border)' : 'var(--sub)'};padding:0;">▼</button>
+        </span>
         <b></b>
         ${scopeBadge}
       </div>
@@ -60,10 +72,33 @@ function buildSkillCard(skill, displayIndex) {
   // 헤더(버튼 영역 제외)를 클릭하면 펼치기/접기가 토글됩니다. 내용이 아무리 길어도 잘리지 않고 전부 보여줍니다.
   card.querySelector('.skill-card-header').addEventListener('click', (e) => {
     if (e.target.closest('.skill-card-actions')) return;
+    if (e.target.closest('.skill-select-checkbox')) return;
+    if (e.target.closest('.skill-move-up') || e.target.closest('.skill-move-down')) return;
     if (expandedSkillIds.has(skill.id)) expandedSkillIds.delete(skill.id);
     else expandedSkillIds.add(skill.id);
     renderSkills();
   });
+
+  card.querySelector('.skill-select-checkbox').addEventListener('click', (e) => e.stopPropagation());
+  card.querySelector('.skill-select-checkbox').addEventListener('change', (e) => {
+    if (e.target.checked) selectedSkillIds.add(skill.id);
+    else selectedSkillIds.delete(skill.id);
+    updateSkillSelectionCount();
+  });
+  card.querySelector('.skill-select-checkbox').checked = selectedSkillIds.has(skill.id);
+
+  if (!isFirst) {
+    card.querySelector('.skill-move-up').addEventListener('click', (e) => {
+      e.stopPropagation();
+      moveSkillPriority(groupSkills, displayIndex, displayIndex - 1);
+    });
+  }
+  if (!isLast) {
+    card.querySelector('.skill-move-down').addEventListener('click', (e) => {
+      e.stopPropagation();
+      moveSkillPriority(groupSkills, displayIndex, displayIndex + 1);
+    });
+  }
 
   card.querySelector('.skill-enable').addEventListener('click', (e) => e.stopPropagation());
   card.querySelector('.skill-enable').addEventListener('change', async (e) => {
@@ -83,11 +118,28 @@ function buildSkillCard(skill, displayIndex) {
     const { error } = await supabaseClient.from('ai_skills').delete().eq('id', skill.id);
     if (error) { showSaveStatus('삭제 실패: ' + error.message, 'err'); return; }
     expandedSkillIds.delete(skill.id);
+    selectedSkillIds.delete(skill.id);
     if (inlineEditingSkillId === skill.id) inlineEditingSkillId = null;
     showSaveStatus('삭제됨 ✓', 'ok');
     await loadSkills();
   });
   return card;
+}
+
+// 같은 그룹(공통 전체, 또는 특정 라이브 전용) 안에서만 순서를 바꿉니다. 바뀐 순서 그대로
+// 0, 1, 2...로 우선순위 값을 다시 매겨서 저장합니다 — 값이 항상 깔끔한 연속 정수로 유지됩니다.
+async function moveSkillPriority(groupSkills, fromIndex, toIndex) {
+  const reordered = [...groupSkills];
+  const [moved] = reordered.splice(fromIndex, 1);
+  reordered.splice(toIndex, 0, moved);
+
+  const updates = reordered.map((s, i) => ({ id: s.id, priority: i }));
+  const results = await Promise.all(
+    updates.map(({ id, priority }) => supabaseClient.from('ai_skills').update({ priority }).eq('id', id)),
+  );
+  const failed = results.find((r) => r.error);
+  if (failed) { showSaveStatus('우선순위 저장 실패: ' + failed.error.message, 'err'); return; }
+  await loadSkills();
 }
 
 // "수정"을 누르면 이동하지 않고, 바로 그 카드 안에서 수정할 수 있도록 폼을 그 자리에 그립니다.
@@ -180,7 +232,7 @@ function renderSkills() {
   const container = document.getElementById('skillGroups');
   container.innerHTML = '';
 
-  const common = aiSkills.filter((s) => s.scope !== 'broadcast');
+  const common = getSortedSkills(aiSkills.filter((s) => s.scope !== 'broadcast'));
   const byBroadcast = new Map();
   aiSkills.filter((s) => s.scope === 'broadcast').forEach((s) => {
     const key = s.broadcast_id || '미지정';
@@ -196,16 +248,31 @@ function renderSkills() {
     p.className = 'hint'; p.textContent = '등록된 공통 스킬이 없습니다.';
     container.appendChild(p);
   } else {
-    getSortedSkills(common).forEach((skill, i) => container.appendChild(buildSkillCard(skill, i)));
+    common.forEach((skill, i) => container.appendChild(buildSkillCard(skill, i, common)));
   }
 
   for (const [broadcastId, group] of byBroadcast.entries()) {
+    const sortedGroup = getSortedSkills(group);
     const title = document.createElement('h3');
     title.style.marginTop = '20px';
-    title.textContent = `🎥 라이브 ${broadcastId} 전용 스킬 (${group.length}개)`;
+    title.textContent = `🎥 라이브 ${broadcastId} 전용 스킬 (${sortedGroup.length}개)`;
     container.appendChild(title);
-    getSortedSkills(group).forEach((skill, i) => container.appendChild(buildSkillCard(skill, i)));
+    sortedGroup.forEach((skill, i) => container.appendChild(buildSkillCard(skill, i, sortedGroup)));
   }
+
+  updateSkillSelectionCount();
+}
+
+function updateSkillSelectionCount() {
+  const countEl = document.getElementById('skillSelectionCount');
+  const selectAllBox = document.getElementById('skillSelectAllCheckbox');
+  if (!countEl) return;
+  // 이미 삭제된 스킬의 id가 선택 목록에 남아있지 않도록 정리합니다.
+  const validIds = new Set(aiSkills.map((s) => s.id));
+  selectedSkillIds.forEach((id) => { if (!validIds.has(id)) selectedSkillIds.delete(id); });
+
+  countEl.textContent = `${selectedSkillIds.size}개 선택 (전체 ${aiSkills.length}개)`;
+  if (selectAllBox) selectAllBox.checked = aiSkills.length > 0 && selectedSkillIds.size === aiSkills.length;
 }
 
 // 스킬 내용을 "[필수 포함 내용]"과 "[핵심 규칙]" 두 칸으로 나눠 입력받되, DB에는 지금처럼
@@ -262,10 +329,16 @@ async function saveSkill() {
     return;
   }
 
+  const groupSkills = aiSkills.filter((s) =>
+    scope === 'broadcast' ? s.scope === 'broadcast' && s.broadcast_id === broadcastId : s.scope !== 'broadcast',
+  );
+  const nextPriority = groupSkills.length > 0 ? Math.max(...groupSkills.map((s) => s.priority ?? 0)) + 1 : 0;
+
   const payload = {
     title, scope,
     broadcast_id: scope === 'broadcast' ? broadcastId : null,
     keywords, match_type: matchType, content,
+    priority: nextPriority, // 새 스킬은 같은 그룹(공통/해당 라이브) 맨 뒤에 추가됩니다. 필요하면 ▲ 버튼으로 올려주세요.
   };
 
   const { error } = await supabaseClient.from('ai_skills').insert({ ...payload, enabled: true });
@@ -289,6 +362,7 @@ const SKILL_FIELD_ALIASES = {
   requiredContent: ['필수포함내용', 'requiredcontent', 'required_content'],
   coreRules: ['핵심규칙', 'corerules', 'core_rules'],
   enabled: ['사용여부', '사용', 'enabled'],
+  priority: ['우선순위', 'priority'],
 };
 
 function normalizeHeaderKey(key) {
@@ -341,6 +415,11 @@ function parseSkillRow(row) {
     ? combineSkillContent(String(requiredContentRaw ?? ''), String(coreRulesRaw ?? ''))
     : String(plainContentRaw ?? '').trim();
   const enabled = normalizeEnabledValue(findSkillField(map, 'enabled'));
+  const priorityRaw = findSkillField(map, 'priority');
+  const priority = priorityRaw !== undefined && priorityRaw !== null && String(priorityRaw).trim() !== ''
+    && !Number.isNaN(Number(priorityRaw))
+    ? Number(priorityRaw)
+    : undefined; // 파일에 우선순위가 없으면 등록 시 그룹 맨 뒤로 자동 배정합니다.
 
   const errors = [];
   if (!title) errors.push('스킬 제목 없음');
@@ -349,7 +428,7 @@ function parseSkillRow(row) {
 
   return {
     title, scope, broadcastId: scope === 'broadcast' ? broadcastId : '',
-    keywords, matchType, content, enabled,
+    keywords, matchType, content, enabled, priority,
     _errors: errors, _valid: errors.length === 0,
   };
 }
@@ -439,15 +518,37 @@ async function importSkillsFromFile() {
   if (validRows.length === 0) { alert('등록 가능한 항목이 없습니다.'); return; }
   if (!confirm(`${validRows.length}개의 스킬을 등록할까요?`)) return;
 
-  const payload = validRows.map((r) => ({
-    title: r.title,
-    scope: r.scope,
-    broadcast_id: r.scope === 'broadcast' ? r.broadcastId : null,
-    keywords: r.keywords,
-    match_type: r.matchType,
-    content: r.content,
-    enabled: r.enabled,
-  }));
+  // 파일에 우선순위가 없는 행들은, 같은 그룹(공통/해당 라이브) 안에서 지금 등록된 것들
+  // 뒤에 파일에 나온 순서 그대로 이어 붙입니다.
+  const groupKey = (r) => (r.scope === 'broadcast' ? `b:${r.broadcastId}` : 'common');
+  const nextPriorityByGroup = new Map();
+  const getStartingPriority = (key) => {
+    if (nextPriorityByGroup.has(key)) return nextPriorityByGroup.get(key);
+    const [scope, broadcastId] = key.startsWith('b:') ? ['broadcast', key.slice(2)] : ['common', null];
+    const group = aiSkills.filter((s) => (scope === 'broadcast' ? s.scope === 'broadcast' && s.broadcast_id === broadcastId : s.scope !== 'broadcast'));
+    const start = group.length > 0 ? Math.max(...group.map((s) => s.priority ?? 0)) + 1 : 0;
+    nextPriorityByGroup.set(key, start);
+    return start;
+  };
+
+  const payload = validRows.map((r) => {
+    let priority = r.priority;
+    if (priority === undefined) {
+      const key = groupKey(r);
+      priority = getStartingPriority(key);
+      nextPriorityByGroup.set(key, priority + 1);
+    }
+    return {
+      title: r.title,
+      scope: r.scope,
+      broadcast_id: r.scope === 'broadcast' ? r.broadcastId : null,
+      keywords: r.keywords,
+      match_type: r.matchType,
+      content: r.content,
+      enabled: r.enabled,
+      priority,
+    };
+  });
 
   const { error } = await supabaseClient.from('ai_skills').insert(payload);
   if (error) { showSaveStatus('일괄 등록 실패: ' + error.message, 'err'); return; }
@@ -527,5 +628,58 @@ function downloadSkillXlsxSample() {
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, '스킬');
   XLSX.writeFile(wb, '스킬_예시.xlsx');
+}
+
+// ------------------------------- 등록된 스킬 내보내기 (선택 또는 전체) -------------------------------
+// 체크된 항목이 있으면 그것만, 하나도 없으면 전체를 내보냅니다. 우선순위(priority)도 함께
+// 내보내므로, 이 파일을 그대로 다시 일괄 등록에 올리면 순서까지 그대로 재현됩니다.
+function getSkillsForExport() {
+  return selectedSkillIds.size > 0 ? aiSkills.filter((s) => selectedSkillIds.has(s.id)) : aiSkills;
+}
+
+function skillToExportRow(skill) {
+  return {
+    title: skill.title,
+    scope: skill.scope,
+    broadcastId: skill.scope === 'broadcast' ? (skill.broadcast_id || '') : '',
+    keywords: skill.keywords || [],
+    matchType: skill.match_type,
+    content: skill.content,
+    enabled: skill.enabled,
+    priority: skill.priority ?? 0,
+  };
+}
+
+function exportSkillsAsJson() {
+  const skills = getSkillsForExport();
+  if (skills.length === 0) { alert('내보낼 스킬이 없습니다.'); return; }
+  const rows = getSortedSkills(skills).map(skillToExportRow);
+  downloadBlob(`스킬_${rows.length}개.json`, JSON.stringify(rows, null, 2), 'application/json;charset=utf-8');
+  showSaveStatus(`${rows.length}개 스킬을 JSON으로 내보냈습니다 ✓`, 'ok');
+}
+
+function exportSkillsAsXlsx() {
+  const skills = getSkillsForExport();
+  if (skills.length === 0) { alert('내보낼 스킬이 없습니다.'); return; }
+  const sorted = getSortedSkills(skills);
+  const headers = ['우선순위', '스킬제목', '적용범위', '라이브아이디', '트리거키워드', '매칭방식', '스킬내용', '사용여부'];
+  const rows = sorted.map((skill) => {
+    const r = skillToExportRow(skill);
+    return [
+      r.priority,
+      r.title,
+      r.scope === 'broadcast' ? '방송전용' : '공통',
+      r.broadcastId,
+      r.keywords.join(', '),
+      r.matchType === 'all' ? '모두포함' : '하나라도포함',
+      r.content,
+      r.enabled ? '사용' : '미사용',
+    ];
+  });
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '스킬');
+  XLSX.writeFile(wb, `스킬_${rows.length}개.xlsx`);
+  showSaveStatus(`${rows.length}개 스킬을 Excel로 내보냈습니다 ✓`, 'ok');
 }
 

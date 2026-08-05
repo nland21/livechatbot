@@ -46,6 +46,13 @@ function bindEvents() {
   document.getElementById('downloadJsonSampleBtn').addEventListener('click', downloadSkillJsonSample);
   document.getElementById('downloadCsvSampleBtn').addEventListener('click', downloadSkillCsvSample);
   document.getElementById('downloadXlsxSampleBtn').addEventListener('click', downloadSkillXlsxSample);
+  document.getElementById('skillSelectAllCheckbox').addEventListener('change', (e) => {
+    if (e.target.checked) aiSkills.forEach((s) => selectedSkillIds.add(s.id));
+    else selectedSkillIds.clear();
+    renderSkills();
+  });
+  document.getElementById('exportSkillJsonBtn').addEventListener('click', exportSkillsAsJson);
+  document.getElementById('exportSkillXlsxBtn').addEventListener('click', exportSkillsAsXlsx);
 
   document.getElementById('specModeManualBtn').addEventListener('click', () => switchSpecMode('manual'));
   document.getElementById('specModeJsonBtn').addEventListener('click', () => switchSpecMode('json'));
