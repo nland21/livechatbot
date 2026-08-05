@@ -1302,8 +1302,26 @@
               </div>
 
               <div class="card">
-                <h3>등록된 스킬</h3>
+                <h3 style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+                  <span>등록된 스킬</span>
+                  <span style="display:flex; align-items:center; gap:8px; font-size:12px; font-weight:400;">
+                    <label style="display:flex; align-items:center; gap:4px; cursor:pointer;">
+                      <input type="checkbox" id="skillSelectAllCheckbox" />
+                      전체선택
+                    </label>
+                    <span class="hint" id="skillSelectionCount" style="margin:0;">0개 선택</span>
+                  </span>
+                </h3>
+                <p class="hint" style="margin-top:0;">
+                  각 스킬의 ▲▼ 버튼으로 같은 그룹(공통 / 특정 라이브 전용) 안에서의 우선순위를
+                  바꿀 수 있습니다. 숫자가 작을수록(우선순위 1에 가까울수록) AI에게 먼저 전달됩니다.
+                </p>
                 <div id="skillGroups"></div>
+                <div style="display:flex; gap:8px; margin-top:14px;">
+                  <button class="btn btn-outline btn-sm" id="exportSkillJsonBtn">📄 JSON 내보내기</button>
+                  <button class="btn btn-outline btn-sm" id="exportSkillXlsxBtn">📊 Excel 내보내기</button>
+                  <span class="hint" style="margin:0; align-self:center;">선택한 항목이 있으면 선택한 것만, 없으면 전체를 내보냅니다.</span>
+                </div>
               </div>
             </section>
 
