@@ -66,6 +66,8 @@ function bindEvents() {
     document.querySelectorAll('.spec-select-checkbox').forEach((box) => { box.checked = e.target.checked; });
     updateSpecSelectionCount();
   });
+  document.getElementById('specEnableBtn').addEventListener('click', () => bulkSetSpecsEnabled(true));
+  document.getElementById('specDisableBtn').addEventListener('click', () => bulkSetSpecsEnabled(false));
   document.getElementById('exportSpecJsonBtn').addEventListener('click', exportSpecsAsJson);
   document.getElementById('exportSpecXlsxBtn').addEventListener('click', exportSpecsAsXlsx);
 

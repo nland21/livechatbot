@@ -25,7 +25,8 @@ function renderSpecList() {
   container.innerHTML = '';
   productSpecs.forEach((spec) => {
     const div = document.createElement('div');
-    div.style.cssText = 'border:1px solid var(--border); border-radius:8px; padding:12px; margin-bottom:8px; display:flex; gap:10px;';
+    const enabled = spec.enabled !== false;
+    div.style.cssText = `border:1px solid var(--border); border-radius:8px; padding:12px; margin-bottom:8px; display:flex; gap:10px; opacity:${enabled ? '1' : '0.5'};`;
     const specLine = [spec.os, spec.cpu, spec.resolution, spec.memory, spec.storage, spec.color].filter(Boolean).join(' · ');
     const extraKeys = spec.extra && typeof spec.extra === 'object' ? Object.keys(spec.extra) : [];
     const extraLine = extraKeys.map((k) => `${k}=${spec.extra[k]}`).join(', ');
@@ -34,10 +35,12 @@ function renderSpecList() {
       <div style="flex:1; display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
         <div>
           <b>${escapeHtml(spec.model_name)}</b>
+          ${!enabled ? '<span class="chip" style="background:#f1f2f4;color:var(--sub);margin-left:6px;">사용 안 함</span>' : ''}
           <div class="hint" style="margin-top:4px;">${escapeHtml(specLine || '(스펙 미입력)')}</div>
           ${extraKeys.length ? `<div class="hint" style="margin-top:4px;">기타: ${escapeHtml(extraLine)}</div>` : ''}
         </div>
-        <div class="li-actions">
+        <div class="li-actions" style="display:flex; align-items:center; gap:8px;">
+          <label class="switch" title="AI 답변에 이 모델 스펙 사용"><input type="checkbox" class="spec-enable-toggle" ${enabled ? 'checked' : ''}/><span class="slider"></span></label>
           <button class="btn btn-outline btn-sm spec-edit-btn">수정</button>
           <button class="btn-danger-outline spec-delete-btn">삭제</button>
         </div>
@@ -46,6 +49,12 @@ function renderSpecList() {
     div.querySelector('.spec-edit-btn').addEventListener('click', () => startEditSpec(spec));
     div.querySelector('.spec-delete-btn').addEventListener('click', () => deleteSpec(spec));
     div.querySelector('.spec-select-checkbox').addEventListener('change', updateSpecSelectionCount);
+    div.querySelector('.spec-enable-toggle').addEventListener('change', async (e) => {
+      const { error } = await supabaseClient.from('product_specs').update({ enabled: e.target.checked }).eq('id', spec.id);
+      if (error) { showSaveStatus('저장 실패: ' + error.message, 'err'); return; }
+      showSaveStatus(e.target.checked ? '사용으로 켰습니다 ✓' : '사용 안 함으로 껐습니다 ✓', 'ok');
+      await loadProductSpecs();
+    });
     container.appendChild(div);
   });
   updateSpecSelectionCount();
@@ -81,7 +90,24 @@ function specToExportRow(spec) {
     storage: spec.storage || '',
     color: spec.color || '',
     extra: spec.extra && typeof spec.extra === 'object' ? spec.extra : {},
+    enabled: spec.enabled !== false,
   };
+}
+
+// 체크된 항목이 있으면 그것만, 없으면 전체의 사용 여부를 한 번에 바꿉니다.
+async function bulkSetSpecsEnabled(nextEnabled) {
+  const specs = getSpecsForExport(); // "선택했으면 선택한 것만, 아니면 전체" 규칙을 export와 그대로 공유합니다.
+  if (specs.length === 0) { alert('대상 제품 스펙이 없습니다.'); return; }
+  const label = nextEnabled ? '사용으로 켤까요' : '사용 안 함으로 끌까요';
+  if (!confirm(`${specs.length}개 모델을 ${label}? (AI 답변 참고 여부에 즉시 반영됩니다)`)) return;
+
+  const results = await Promise.all(
+    specs.map((s) => supabaseClient.from('product_specs').update({ enabled: nextEnabled }).eq('id', s.id)),
+  );
+  const failed = results.find((r) => r.error);
+  if (failed) { showSaveStatus('일괄 변경 실패: ' + failed.error.message, 'err'); return; }
+  showSaveStatus(`${specs.length}개 모델을 ${nextEnabled ? '켬' : '끔'} ✓`, 'ok');
+  await loadProductSpecs();
 }
 
 function exportSpecsAsJson() {
@@ -95,11 +121,11 @@ function exportSpecsAsJson() {
 function exportSpecsAsXlsx() {
   const specs = getSpecsForExport();
   if (specs.length === 0) { alert('내보낼 제품 스펙이 없습니다.'); return; }
-  const headers = ['모델명', '운영체제', 'CPU', '해상도', '메모리', '저장장치', '색상', '기타'];
+  const headers = ['모델명', '운영체제', 'CPU', '해상도', '메모리', '저장장치', '색상', '기타', '사용여부'];
   const rows = specs.map((spec) => {
     const row = specToExportRow(spec);
     const extraStr = Object.keys(row.extra).length ? JSON.stringify(row.extra) : '';
-    return [row.modelName, row.os, row.cpu, row.resolution, row.memory, row.storage, row.color, extraStr];
+    return [row.modelName, row.os, row.cpu, row.resolution, row.memory, row.storage, row.color, extraStr, row.enabled ? '사용' : '미사용'];
   });
   const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
   const wb = XLSX.utils.book_new();
@@ -211,6 +237,7 @@ const SPEC_FIELD_ALIASES = {
   storage: ['저장장치', 'storage', 'ssd'],
   color: ['색상', 'color'],
   extra: ['기타', '기타스펙', 'extra'],
+  enabled: ['사용여부', '사용', 'enabled'],
 };
 
 function findSpecField(normalizedRowMap, fieldKey) {
@@ -219,6 +246,12 @@ function findSpecField(normalizedRowMap, fieldKey) {
     if (aliasKey in normalizedRowMap) return normalizedRowMap[aliasKey];
   }
   return undefined;
+}
+
+function normalizeSpecEnabledValue(v) {
+  if (v === undefined || v === null || v === '') return true; // 값이 없으면 기본은 사용함
+  const s = normalizeHeaderKey(v);
+  return !['미사용', 'false', '0', 'n', 'no', 'off', '사용안함', '사용 안 함'].includes(s);
 }
 
 function parseSpecRow(row) {
@@ -237,11 +270,12 @@ function parseSpecRow(row) {
     try { extra = JSON.parse(extra); } catch { extra = {}; }
   }
   if (!extra || typeof extra !== 'object' || Array.isArray(extra)) extra = {};
+  const enabled = normalizeSpecEnabledValue(findSpecField(map, 'enabled'));
 
   const errors = [];
   if (!modelName) errors.push('모델명 없음');
 
-  return { modelName, os, cpu, resolution, memory, storage, color, extra, _errors: errors, _valid: errors.length === 0 };
+  return { modelName, os, cpu, resolution, memory, storage, color, extra, enabled, _errors: errors, _valid: errors.length === 0 };
 }
 
 function renderSpecImportPreview() {
@@ -318,6 +352,7 @@ async function importSpecsFromJson() {
     storage: r.storage || null,
     color: r.color || null,
     extra: r.extra || {},
+    enabled: r.enabled,
   }));
 
   const { error } = await supabaseClient.from('product_specs').upsert(payload, { onConflict: 'model_name' });
