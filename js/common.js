@@ -102,7 +102,7 @@ async function afterLogin(session) {
   document.getElementById('downloadsTabBtn').style.display = isMaster ? 'flex' : 'none';
   document.getElementById('masterGroupTitle').style.display = isMaster ? 'block' : 'none';
 
-  populateTimeSelects();
+  setupFlexibleDateTimeInputs();
   bindEvents();
   switchSpecMode('manual');
   await loadAll();
