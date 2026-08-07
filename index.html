@@ -1545,17 +1545,32 @@
               <div class="card">
                 <h3>+ 새 예약</h3>
                 <div class="field">
-                  <label>시작 날짜</label
-                  ><input type="date" id="newLiveScheduleDate" />
+                  <label>시작 날짜</label>
+                  <div style="display:flex; gap:6px;">
+                    <input
+                      type="text"
+                      id="newLiveScheduleDateText"
+                      placeholder="예: 0609, 06.09, 6월9일, 2026-06-09"
+                      style="flex:1;"
+                    />
+                    <button type="button" class="btn btn-outline" id="newLiveScheduleDatePickerBtn" title="달력에서 선택" style="padding:0 14px;">📅</button>
+                    <input type="date" id="newLiveScheduleDateNative" style="position:absolute; width:1px; height:1px; opacity:0; pointer-events:none;" tabindex="-1" />
+                  </div>
+                  <div class="hint" id="newLiveScheduleDatePreview" style="margin-top:4px;"></div>
                 </div>
                 <div class="field">
                   <label>시작 시각 (24시간제)</label>
-                  <div class="time-select-row">
-                    <select id="newLiveScheduleHour"></select
-                    ><span>시</span>
-                    <select id="newLiveScheduleMinute"></select
-                    ><span>분</span>
+                  <div style="display:flex; gap:6px;">
+                    <input
+                      type="text"
+                      id="newLiveScheduleTimeText"
+                      placeholder="예: 18:30, 오후 6시 30분, 0630"
+                      style="flex:1;"
+                    />
+                    <button type="button" class="btn btn-outline" id="newLiveScheduleTimePickerBtn" title="시계에서 선택" style="padding:0 14px;">🕒</button>
+                    <input type="time" id="newLiveScheduleTimeNative" style="position:absolute; width:1px; height:1px; opacity:0; pointer-events:none;" tabindex="-1" />
                   </div>
+                  <div class="hint" id="newLiveScheduleTimePreview" style="margin-top:4px;"></div>
                 </div>
                 <div class="field">
                   <label>라이브 아이디</label
