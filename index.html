@@ -211,10 +211,15 @@
         padding-top: 12px;
         border-top: 1px solid rgba(255, 255, 255, 0.08);
       }
-      .sidebar-footer .who {
-        font-size: 11px;
+      .current-account-box {
+        margin: 8px 14px 4px;
+        padding: 8px 10px;
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.06);
+        font-size: 10.5px;
+        line-height: 1.5;
         color: #c3c9d1;
-        margin-bottom: 8px;
+        word-break: break-all;
       }
       .sidebar-footer button {
         width: 100%;
@@ -970,9 +975,9 @@
             >
               <span class="icon">👤</span> 계정 관리
             </button>
+            <div class="current-account-box" id="whoAmI">로그인 확인 중...</div>
           </nav>
           <div class="sidebar-footer">
-            <div class="who" id="whoAmI">로그인 확인 중...</div>
             <button id="logoutBtn">로그아웃</button>
           </div>
         </aside>
