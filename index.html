@@ -3,6 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
     <title>노트북랜드21 라이브 채팅 관리자 (사용자용)</title>
     <style>
       :root {
@@ -780,6 +781,114 @@
         margin: 8px 0;
         font-size: 12px;
       }
+
+      /* ================= 모바일 최적화 (햄버거 메뉴) ================= */
+      .mobile-menu-toggle {
+        display: none;
+        align-items: center;
+        justify-content: center;
+        width: 38px;
+        height: 38px;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: var(--panel);
+        font-size: 18px;
+        cursor: pointer;
+        flex-shrink: 0;
+      }
+      .sidebar-backdrop {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(17, 24, 39, 0.5);
+        z-index: 900;
+      }
+
+      @media (max-width: 860px) {
+        /* 사이드바를 평소엔 화면 밖에 숨겨두고, 열리면 위로 슬라이드해 들어오는 오버레이로 전환 */
+        .sidebar {
+          position: fixed;
+          top: 0;
+          left: 0;
+          bottom: 0;
+          width: min(78vw, 280px);
+          z-index: 1000;
+          transform: translateX(-100%);
+          transition: transform 0.22s ease;
+          box-shadow: 4px 0 20px rgba(0, 0, 0, 0.3);
+        }
+        .sidebar.open {
+          transform: translateX(0);
+        }
+        .sidebar-backdrop.open {
+          display: block;
+        }
+        .mobile-menu-toggle {
+          display: inline-flex;
+        }
+
+        .app-shell {
+          display: block; /* 사이드바가 fixed로 빠지므로 .main이 전체 폭을 그대로 씀 */
+        }
+        .main {
+          width: 100%;
+        }
+
+        .topbar {
+          padding: 10px 14px;
+          gap: 10px;
+        }
+        .topbar > div:first-child {
+          font-size: 11px;
+        }
+
+        .content {
+          padding: 16px 14px 48px;
+          max-width: 100%;
+        }
+        .content h2 {
+          font-size: 15.5px;
+        }
+
+        /* 폼 두 칸(row-2)은 좁은 화면에서 위아래로 쌓습니다 (예: 버전 라벨/변경 메모) */
+        .row-2 {
+          flex-direction: column;
+        }
+
+        /* 버튼/입력창 터치 영역 확대 */
+        .btn,
+        button,
+        input[type="text"],
+        input[type="date"],
+        input[type="time"],
+        input[type="password"],
+        input[type="email"],
+        select,
+        textarea {
+          min-height: 40px;
+          font-size: 14px;
+        }
+        .tab-btn {
+          padding: 12px 10px;
+          font-size: 13.5px;
+        }
+        .btn-sm,
+        .device-card-footer .btn {
+          min-height: 36px;
+        }
+
+        /* 카드 안 버튼 줄이 화면 밖으로 밀려나지 않도록 줄바꿈 허용 */
+        .device-card-footer,
+        .li-actions {
+          flex-wrap: wrap;
+        }
+
+        /* 로그인 화면도 좌우 여백을 줄여 작은 화면에 맞춤 */
+        .login-card {
+          width: calc(100vw - 32px);
+          max-width: 360px;
+        }
+      }
     </style>
   </head>
   <body>
@@ -808,7 +917,8 @@
     <!-- ============ 관리자 앱 화면 ============ -->
     <div id="appScreen">
       <div class="app-shell">
-        <aside class="sidebar">
+        <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+        <aside class="sidebar" id="appSidebar">
           <div class="brand">
             <div class="logo-row">
               <span class="logo-dot"></span>
@@ -869,9 +979,18 @@
 
         <div class="main">
           <header class="topbar">
-            <div>
-              이 페이지에서 저장하면 사무실 PC의 확장 프로그램에 최대 1분 안에
-              자동 반영됩니다.
+            <div style="display: flex; align-items: center; gap: 10px">
+              <button
+                class="mobile-menu-toggle"
+                id="mobileMenuToggle"
+                aria-label="메뉴 열기"
+              >
+                ☰
+              </button>
+              <div>
+                이 페이지에서 저장하면 사무실 PC의 확장 프로그램에 최대 1분
+                안에 자동 반영됩니다.
+              </div>
             </div>
             <div style="display: flex; align-items: center; gap: 10px">
               <div class="save-status" id="saveStatus"></div>
@@ -1545,32 +1664,17 @@
               <div class="card">
                 <h3>+ 새 예약</h3>
                 <div class="field">
-                  <label>시작 날짜</label>
-                  <div style="display:flex; gap:6px;">
-                    <input
-                      type="text"
-                      id="newLiveScheduleDateText"
-                      placeholder="예: 0609, 06.09, 6월9일, 2026-06-09"
-                      style="flex:1;"
-                    />
-                    <button type="button" class="btn btn-outline" id="newLiveScheduleDatePickerBtn" title="달력에서 선택" style="padding:0 14px;">📅</button>
-                    <input type="date" id="newLiveScheduleDateNative" style="position:absolute; width:1px; height:1px; opacity:0; pointer-events:none;" tabindex="-1" />
-                  </div>
-                  <div class="hint" id="newLiveScheduleDatePreview" style="margin-top:4px;"></div>
+                  <label>시작 날짜</label
+                  ><input type="date" id="newLiveScheduleDate" />
                 </div>
                 <div class="field">
                   <label>시작 시각 (24시간제)</label>
-                  <div style="display:flex; gap:6px;">
-                    <input
-                      type="text"
-                      id="newLiveScheduleTimeText"
-                      placeholder="예: 18:30, 오후 6시 30분, 0630"
-                      style="flex:1;"
-                    />
-                    <button type="button" class="btn btn-outline" id="newLiveScheduleTimePickerBtn" title="시계에서 선택" style="padding:0 14px;">🕒</button>
-                    <input type="time" id="newLiveScheduleTimeNative" style="position:absolute; width:1px; height:1px; opacity:0; pointer-events:none;" tabindex="-1" />
+                  <div class="time-select-row">
+                    <select id="newLiveScheduleHour"></select
+                    ><span>시</span>
+                    <select id="newLiveScheduleMinute"></select
+                    ><span>분</span>
                   </div>
-                  <div class="hint" id="newLiveScheduleTimePreview" style="margin-top:4px;"></div>
                 </div>
                 <div class="field">
                   <label>라이브 아이디</label
@@ -1598,8 +1702,11 @@
               <h2>로컬PC 상태</h2>
               <p class="page-desc">
                 지금 서버에 연동돼 있는 로컬 PC(확장 프로그램)들의 실시간
-                상태입니다. PC는 최대 20초 간격으로 상태를 보고하며, 이 화면은
-                30초마다 자동으로 새로고침됩니다.
+                상태입니다.
+              </p>
+              <p class="hint" style="margin-top: -6px">
+                🖥️ 로컬PC는 20초마다 상태를 보고합니다 · 🔄 다음 새로고침까지
+                <b id="nextRefreshCountdown">30</b>초
               </p>
 
               <div

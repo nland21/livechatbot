@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect x="4" y="4" width="56" height="56" rx="14" fill="#03c75a"/>
+  <!-- 로봇 안테나 -->
+  <line x1="32" y1="16" x2="32" y2="10" stroke="#ffffff" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="32" cy="8" r="3" fill="#ffffff"/>
+  <!-- 채팅 말풍선 -->
+  <path d="M14 24c0-4.4 3.6-8 8-8h20c4.4 0 8 3.6 8 8v14c0 4.4-3.6 8-8 8H26l-9 8v-8.6c-1.8-1.4-3-3.6-3-6.2V24z" fill="#ffffff"/>
+  <!-- 로봇 눈 -->
+  <circle cx="25" cy="30" r="3.2" fill="#03c75a"/>
+  <circle cx="39" cy="30" r="3.2" fill="#03c75a"/>
+  <!-- 로봇 입 -->
+  <rect x="24" y="37" width="16" height="3" rx="1.5" fill="#03c75a"/>
+</svg>
