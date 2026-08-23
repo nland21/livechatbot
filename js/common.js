@@ -6,9 +6,39 @@
 //  노트북랜드21 라이브 채팅 관리자 웹페이지 - app.js
 // ============================================================
 
-const supabaseClient = window.supabase.createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.anonKey);
+// persistSession: 창/브라우저를 닫았다 다시 열어도 로그인이 풀리지 않도록 세션을
+// 브라우저 저장소(localStorage)에 남겨둡니다. autoRefreshToken: 로그인이 유지되는 동안
+// 접속 토큰이 만료되기 전에 자동으로 갱신합니다. (둘 다 SDK 기본값과 같지만, 의도를
+// 명확히 하려고 직접 지정해둡니다)
+const supabaseClient = window.supabase.createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.anonKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    storage: window.localStorage,
+  },
+});
 
 let currentSession = null;
+let suppressAuthChangeHandling = false; // 우리 코드가 의도적으로 로그아웃시키는 중에는 아래 리스너가 중복 처리하지 않도록
+
+// 로그아웃 버튼, 강제 로그아웃 등 "우리가 의도적으로 로그아웃시키는" 모든 경로가 이 함수를
+// 거치게 해서, 예기치 않은 로그아웃(세션 만료 등)과 구분합니다.
+async function forceReLogin(message) {
+  suppressAuthChangeHandling = true;
+  if (message) alert(message);
+  await supabaseClient.auth.signOut();
+  location.reload();
+}
+
+// 우리가 직접 로그아웃시킨 게 아닌데 로그아웃 상태가 된 경우입니다 — 대부분 오래 켜둔 탭에서
+// 세션(리프레시 토큰)이 만료된 경우입니다. 창을 닫았다 다시 열면 위 persistSession 덕분에
+// 보통은 자동으로 다시 로그인되지만, 정말로 만료된 경우엔 안내 후 로그인 화면으로 돌아갑니다.
+supabaseClient.auth.onAuthStateChange((event) => {
+  if (event === 'SIGNED_OUT' && !suppressAuthChangeHandling) {
+    alert('로그인 세션이 만료되어 로그아웃되었습니다. 다시 로그인해주세요.');
+    location.reload();
+  }
+});
 
 function uid() {
   return Math.random().toString(36).slice(2, 9);
@@ -49,8 +79,7 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
 });
 
 document.getElementById('logoutBtn').addEventListener('click', async () => {
-  await supabaseClient.auth.signOut();
-  location.reload();
+  await forceReLogin();
 });
 
 const ROLE_LABELS = {
@@ -73,20 +102,16 @@ async function afterLogin(session) {
     .maybeSingle();
 
   if (error || !roleRow || !WEB_LOGIN_ALLOWED_ROLES.includes(roleRow.role)) {
-    alert(
+    await forceReLogin(
       !roleRow
         ? '권한이 등록되지 않은 계정입니다. 마스터관리자에게 문의해주세요.'
         : '로컬매니저 계정은 이 웹페이지에 로그인할 수 없습니다. (로컬 PC 확장 프로그램 전용 계정입니다)'
     );
-    await supabaseClient.auth.signOut();
-    location.reload();
     return;
   }
 
   if (roleRow.force_logout_requested) {
-    alert('마스터관리자에 의해 이 계정의 접속이 차단되었습니다. 다시 이용하시려면 마스터관리자에게 문의해주세요.');
-    await supabaseClient.auth.signOut();
-    location.reload();
+    await forceReLogin('마스터관리자에 의해 이 계정의 접속이 차단되었습니다. 다시 이용하시려면 마스터관리자에게 문의해주세요.');
     return;
   }
 
@@ -135,9 +160,7 @@ async function checkForceLogout() {
     .from('user_roles').select('force_logout_requested').eq('user_id', currentSession.user.id).maybeSingle();
   if (error || !data) return;
   if (data.force_logout_requested) {
-    alert('마스터관리자에 의해 접속이 차단되었습니다. 다시 이용하시려면 마스터관리자에게 문의해주세요.');
-    await supabaseClient.auth.signOut();
-    location.reload();
+    await forceReLogin('마스터관리자에 의해 접속이 차단되었습니다. 다시 이용하시려면 마스터관리자에게 문의해주세요.');
   }
 }
 

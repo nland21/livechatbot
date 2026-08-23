@@ -121,9 +121,25 @@ function renderLiveScheduleList() {
     const isLive = liveBroadcastIds.has(String(entry.broadcast_id));
     const isEnded = !Number.isNaN(dt.getTime()) && Date.now() >= dt.getTime() + BROADCAST_DURATION_MS;
     if (isEnded) li.style.opacity = '0.55';
-    li.innerHTML = `<span class="content"><b class="${isEnded ? 'ended-text' : ''}" style="color:var(--brand-dark);"></b> <span class="live-badge" style="display:${isLive ? 'inline-block' : 'none'};">LIVE</span><span class="ended-badge" style="display:${isEnded ? 'inline-block' : 'none'};">종료</span><br/><span class="bid ${isEnded ? 'ended-text' : ''}"></span></span><div class="li-actions"><button class="btn-danger-outline">삭제</button></div>`;
+    // 종료되지 않은(LIVE·대기중) 예약만 라이브 아이디를 눌러서 복사할 수 있게 합니다.
+    // "로컬PC 상태" 탭에서 라이브 이동시킬 때 붙여넣기 편하도록 하기 위함입니다.
+    const bidValue = escapeHtml(String(entry.broadcast_id));
+    const bidHtml = isEnded
+      ? bidValue
+      : `<span class="bid-copy" title="클릭하면 라이브 아이디가 복사됩니다" style="cursor:pointer; text-decoration:underline dotted; color:var(--brand-dark); font-weight:700;">${bidValue}</span>`;
+    li.innerHTML = `<span class="content"><b class="${isEnded ? 'ended-text' : ''}" style="color:var(--brand-dark);"></b> <span class="live-badge" style="display:${isLive ? 'inline-block' : 'none'};">LIVE</span><span class="ended-badge" style="display:${isEnded ? 'inline-block' : 'none'};">종료</span><br/><span class="bid ${isEnded ? 'ended-text' : ''}">라이브 아이디: ${bidHtml}</span></span><div class="li-actions"><button class="btn-danger-outline">삭제</button></div>`;
     li.querySelector('b').textContent = dtLabel;
-    li.querySelector('.bid').textContent = `라이브 아이디: ${entry.broadcast_id}`;
+    const copyEl = li.querySelector('.bid-copy');
+    if (copyEl) {
+      copyEl.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(String(entry.broadcast_id));
+          showSaveStatus(`라이브 아이디 ${entry.broadcast_id} 복사됨 ✓`, 'ok');
+        } catch (e) {
+          showSaveStatus('복사에 실패했습니다. 직접 드래그해서 복사해주세요.', 'err');
+        }
+      });
+    }
     li.querySelector('button').addEventListener('click', async () => {
       if (!confirm('이 예약을 삭제할까요?')) return;
       const { error } = await supabaseClient.from('live_schedule').delete().eq('id', entry.id);
