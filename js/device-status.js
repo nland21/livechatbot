@@ -173,7 +173,11 @@ function renderDeviceCards(devices) {
     card.className = 'card device-card';
     card.innerHTML = `
       <div class="device-live-row">
-        <span class="device-live-label">라이브 : <b>${d.current_broadcast_id ? escapeHtml(String(d.current_broadcast_id)) : '없음'}</b></span>
+        <span class="device-live-label">라이브 : ${
+          d.current_broadcast_id
+            ? `<a href="https://view.shoppinglive.naver.com/lives/${encodeURIComponent(d.current_broadcast_id)}" target="_blank" rel="noopener noreferrer" style="color:var(--brand-dark); font-weight:800; text-decoration:underline;" title="새 창에서 라이브 보기">${escapeHtml(String(d.current_broadcast_id))}</a>`
+            : '<b>없음</b>'
+        }</span>
         <button class="btn btn-outline btn-sm device-live-edit-btn" data-device="${escapeHtml(d.device_name)}">✏️ 수정</button>
       </div>
       <div class="device-live-edit-form" data-device="${escapeHtml(d.device_name)}" style="display:none;">
