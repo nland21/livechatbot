@@ -2,13 +2,32 @@
 //  이벤트 바인딩 + 부트스트랩 (모든 다른 js 파일 로드가 끝난 뒤 마지막에 실행)
 // ============================================================
 
+function closeMobileSidebar() {
+  const sidebar = document.getElementById('appSidebar');
+  const backdrop = document.getElementById('sidebarBackdrop');
+  if (sidebar) sidebar.classList.remove('open');
+  if (backdrop) backdrop.classList.remove('open');
+}
+
 function bindEvents() {
   document.querySelectorAll('.tab-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.tab-btn').forEach((b) => b.classList.toggle('active', b === btn));
       document.querySelectorAll('.tab-panel').forEach((p) => p.classList.toggle('active', p.id === 'tab-' + btn.dataset.tab));
+      closeMobileSidebar(); // 모바일에서 메뉴에서 항목을 고르면 자동으로 메뉴를 접어줍니다.
     });
   });
+
+  // ---------------- 모바일 햄버거 메뉴 ----------------
+  const sidebar = document.getElementById('appSidebar');
+  const backdrop = document.getElementById('sidebarBackdrop');
+  const menuToggle = document.getElementById('mobileMenuToggle');
+  menuToggle.addEventListener('click', () => {
+    const opening = !sidebar.classList.contains('open');
+    sidebar.classList.toggle('open', opening);
+    backdrop.classList.toggle('open', opening);
+  });
+  backdrop.addEventListener('click', closeMobileSidebar);
 
   document.getElementById('saveBroadcastSettingsBtn').addEventListener('click', saveBroadcastSettings);
   document.getElementById('saveKeywordSettingsBtn').addEventListener('click', saveKeywordSettings);

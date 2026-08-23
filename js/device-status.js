@@ -35,6 +35,29 @@ async function refreshDeviceStatus() {
 
   renderDevicesSummaryPill(devices, error);
   renderDeviceCards(devices);
+  restartDeviceRefreshCountdown();
+}
+
+// ------------------------------- 다음 새로고침까지 카운트다운 -------------------------------
+// 자동 새로고침(30초 주기) 또는 수동 새로고침 버튼, 둘 다 refreshDeviceStatus()를 거치므로
+// 여기 한 곳에서만 리셋하면 두 경우 모두 정확히 반영됩니다.
+const DEVICE_REFRESH_INTERVAL_SEC = 30;
+let deviceRefreshCountdownTimer = null;
+let deviceRefreshSecondsLeft = DEVICE_REFRESH_INTERVAL_SEC;
+
+function renderDeviceRefreshCountdown() {
+  const el = document.getElementById('nextRefreshCountdown');
+  if (el) el.textContent = String(Math.max(0, deviceRefreshSecondsLeft));
+}
+
+function restartDeviceRefreshCountdown() {
+  deviceRefreshSecondsLeft = DEVICE_REFRESH_INTERVAL_SEC;
+  renderDeviceRefreshCountdown();
+  if (deviceRefreshCountdownTimer) return; // 1초 틱은 한 번만 시작하면 계속 재사용합니다.
+  deviceRefreshCountdownTimer = setInterval(() => {
+    deviceRefreshSecondsLeft = Math.max(0, deviceRefreshSecondsLeft - 1);
+    renderDeviceRefreshCountdown();
+  }, 1000);
 }
 
 // ------------------------------- 시간 표시 -------------------------------
