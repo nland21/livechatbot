@@ -142,6 +142,7 @@ function setupFlexibleDateTimeInputs() {
   const datePreview = document.getElementById('newLiveScheduleDatePreview');
   const dateNative = document.getElementById('newLiveScheduleDateNative');
   const datePickerBtn = document.getElementById('newLiveScheduleDatePickerBtn');
+  if (!dateText || !datePreview || !dateNative || !datePickerBtn) return; // 이 탭 HTML이 없는 상황에 대비한 안전장치
 
   dateText.addEventListener('input', () => {
     const parsed = parseFlexibleDate(dateText.value);
@@ -163,6 +164,7 @@ function setupFlexibleDateTimeInputs() {
   const timePreview = document.getElementById('newLiveScheduleTimePreview');
   const timeNative = document.getElementById('newLiveScheduleTimeNative');
   const timePickerBtn = document.getElementById('newLiveScheduleTimePickerBtn');
+  if (!timeText || !timePreview || !timeNative || !timePickerBtn) return;
 
   timeText.addEventListener('input', () => {
     const parsed = parseFlexibleTime(timeText.value);
@@ -207,4 +209,3 @@ async function addLiveSchedule() {
   showSaveStatus('저장됨 ✓', 'ok');
   await loadLiveSchedule();
 }
-

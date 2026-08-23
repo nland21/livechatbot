@@ -102,7 +102,14 @@ async function afterLogin(session) {
   document.getElementById('downloadsTabBtn').style.display = isMaster ? 'flex' : 'none';
   document.getElementById('masterGroupTitle').style.display = isMaster ? 'block' : 'none';
 
-  setupFlexibleDateTimeInputs();
+  // 이 초기화 단계 하나가 실패해도(예: 특정 탭 HTML과 스크립트가 어긋난 경우) 아래
+  // bindEvents()가 반드시 실행되도록 감쌉니다 — 예전에 여기서 예외가 나면 그 아래 있던
+  // bindEvents()가 통째로 안 불려서 사이트 전체 버튼이 먹통이 되는 사고가 있었습니다.
+  try {
+    setupFlexibleDateTimeInputs();
+  } catch (e) {
+    console.error('[관리자 웹페이지] setupFlexibleDateTimeInputs 초기화 실패:', e);
+  }
   bindEvents();
   switchSpecMode('manual');
   await loadAll();
