@@ -144,6 +144,28 @@ function statusValueHtml(status) {
 }
 
 // ------------------------------- 카드 목록 렌더 -------------------------------
+// "다음 라이브 이동" 탭에 이미 등록된 예약(liveSchedule, nextlive.js에서 관리) 중 종료되지
+// 않은 것만 골라서 <option> 목록으로 만듭니다. 같은 페이지 안이라 별도로 다시 불러올 필요 없이
+// 그대로 재사용합니다. 등록된 게 하나도 없으면 빈 문자열을 돌려줘서 드롭다운 자체를 숨깁니다.
+function buildLiveScheduleOptionsHtml() {
+  if (typeof liveSchedule === 'undefined' || !Array.isArray(liveSchedule) || liveSchedule.length === 0) return '';
+
+  const now = Date.now();
+  const upcoming = liveSchedule
+    .map((entry) => ({ entry, dt: new Date(entry.datetime) }))
+    .filter(({ dt }) => !Number.isNaN(dt.getTime()) && now < dt.getTime() + BROADCAST_DURATION_MS)
+    .sort((a, b) => a.dt.getTime() - b.dt.getTime());
+
+  if (upcoming.length === 0) return '';
+
+  return upcoming
+    .map(({ entry, dt }) => {
+      const label = `${formatDatetime24h(dt)} · ${entry.broadcast_id}`;
+      return `<option value="${escapeHtml(String(entry.broadcast_id))}">${escapeHtml(label)}</option>`;
+    })
+    .join('');
+}
+
 function renderDeviceCards(devices) {
   const wrap = document.getElementById('deviceCardList');
   if (!wrap) return;
@@ -154,6 +176,9 @@ function renderDeviceCards(devices) {
   }
 
   wrap.innerHTML = '';
+
+  // 모든 카드가 같은 목록을 보여주므로, 카드마다 다시 계산하지 않고 한 번만 만들어 재사용합니다.
+  const liveOptionsHtml = buildLiveScheduleOptionsHtml();
 
   devices.forEach((d) => {
     const stale = isDeviceStale(d);
@@ -181,9 +206,15 @@ function renderDeviceCards(devices) {
         <button class="btn btn-outline btn-sm device-live-edit-btn" data-device="${escapeHtml(d.device_name)}">✏️ 수정</button>
       </div>
       <div class="device-live-edit-form" data-device="${escapeHtml(d.device_name)}" style="display:none;">
-        <input type="text" class="device-live-input" placeholder="이동할 라이브 ID 입력 (예: 1991345)" inputmode="numeric" />
-        <button class="btn btn-primary btn-sm device-live-confirm-btn" data-device="${escapeHtml(d.device_name)}">확인</button>
-        <button class="btn btn-outline btn-sm device-live-cancel-btn">취소</button>
+        ${liveOptionsHtml ? `<select class="device-live-select">
+          <option value="">등록된 라이브에서 선택 (선택 안 하면 아래 직접 입력)</option>
+          ${liveOptionsHtml}
+        </select>` : ''}
+        <div style="display:flex; gap:6px;">
+          <input type="text" class="device-live-input" placeholder="이동할 라이브 ID 입력 (예: 1991345)" inputmode="numeric" />
+          <button class="btn btn-primary btn-sm device-live-confirm-btn" data-device="${escapeHtml(d.device_name)}">확인</button>
+          <button class="btn btn-outline btn-sm device-live-cancel-btn">취소</button>
+        </div>
       </div>
 
       <div class="device-card-header">
@@ -277,6 +308,15 @@ function renderDeviceCards(devices) {
       if (!form) return;
       form.style.display = form.style.display === 'none' ? 'flex' : 'none';
       if (form.style.display === 'flex') form.querySelector('.device-live-input').focus();
+    });
+  });
+  // 등록된 예약을 고르면, 수동 입력창을 그대로 채워줍니다(수동 입력은 그대로 유지되고,
+  // 드롭다운은 "빠르게 채워주는" 역할만 합니다 — 최종 확인/전송은 기존 로직 그대로).
+  wrap.querySelectorAll('.device-live-select').forEach((select) => {
+    select.addEventListener('change', () => {
+      if (!select.value) return;
+      const input = select.closest('.device-live-edit-form').querySelector('.device-live-input');
+      input.value = select.value;
     });
   });
   wrap.querySelectorAll('.device-live-cancel-btn').forEach((btn) => {
