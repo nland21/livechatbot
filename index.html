@@ -639,8 +639,17 @@
       .device-live-label b { font-size: 13.5px; }
       .device-live-edit-form {
         display: flex;
+        flex-direction: column;
         gap: 6px;
         margin: -4px 0 10px;
+      }
+      .device-live-edit-form .device-live-select {
+        padding: 6px 8px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        font-size: 12px;
+        color: var(--text);
+        background: #fff;
       }
       .device-live-edit-form .device-live-input {
         flex: 1;
