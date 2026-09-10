@@ -201,54 +201,96 @@ function setupFlexibleDateTimeInputs() {
   setupQuickScheduleInput();
 }
 
-// "2024688 / 2026.09.11 / 22:00"처럼 라이브ID/날짜/시각을 한 번에 붙여넣으면, 순서대로
-// 나눠서 위 3개 입력창(라이브 아이디·날짜·시각)을 자동으로 채워줍니다. 날짜·시각 부분은
-// 이미 있는 자유 입력 파서를 그대로 재사용해서, 여기서도 같은 다양한 형식을 다 알아듣습니다.
-// 최종 등록은 그대로 "+ 예약 추가" 버튼을 눌러 진행합니다(붙여넣기 실수로 바로 등록되지
-// 않도록, 채워진 값을 한 번 확인할 수 있게 합니다).
+// "2026-09-12 / 22:00 / 2024695"처럼 한 줄에 "날짜 / 시각 / 라이브ID"를 입력하면, 그
+// 줄들을 하나씩 해석해서 미리보기로 보여주고 "일괄 등록" 버튼으로 한 번에 여러 개를 등록할
+// 수 있습니다. 1줄만 입력해도 그대로 동작합니다. 날짜·시각 부분은 이미 있는 자유 입력
+// 파서를 그대로 재사용해서, 줄마다 형식이 섞여 있어도(0609, 6월9일, 오후 6시 등) 다 알아듣습니다.
 function setupQuickScheduleInput() {
   const quickInput = document.getElementById('newLiveScheduleQuickInput');
   const quickPreview = document.getElementById('newLiveScheduleQuickPreview');
-  if (!quickInput || !quickPreview) return;
+  const quickAddBtn = document.getElementById('newLiveScheduleQuickAddBtn');
+  if (!quickInput || !quickPreview || !quickAddBtn) return;
+
+  let parsedQuickRows = [];
+
+  function parseQuickLines() {
+    const lines = quickInput.value.split('\n').map((l) => l.trim()).filter(Boolean);
+    parsedQuickRows = lines.map((line, i) => {
+      const parts = line.split('/').map((p) => p.trim()).filter(Boolean);
+      if (parts.length !== 3) {
+        return { ok: false, raw: line, lineNo: i + 1, error: '"날짜 / 시각 / 라이브ID" 형태로 "/"로 구분해주세요' };
+      }
+      const [datePart, timePart, idPart] = parts;
+      const parsedDate = parseFlexibleDate(datePart);
+      const parsedTime = parseFlexibleTime(timePart);
+      const broadcastIdOk = /^\d+$/.test(idPart);
+      if (!parsedDate || !parsedTime || !broadcastIdOk) {
+        const problems = [];
+        if (!parsedDate) problems.push('날짜');
+        if (!parsedTime) problems.push('시각');
+        if (!broadcastIdOk) problems.push('라이브ID(숫자만)');
+        return { ok: false, raw: line, lineNo: i + 1, error: `알아볼 수 없는 값: ${problems.join(', ')}` };
+      }
+      return {
+        ok: true,
+        raw: line,
+        lineNo: i + 1,
+        date: formatDateForStorage(parsedDate),
+        time: formatTimeForStorage(parsedTime),
+        broadcastId: idPart,
+      };
+    });
+  }
+
+  function renderQuickPreview() {
+    if (parsedQuickRows.length === 0) {
+      quickPreview.innerHTML = '';
+      quickAddBtn.style.display = 'none';
+      return;
+    }
+    quickPreview.innerHTML = parsedQuickRows
+      .map((r) => {
+        const text = r.ok
+          ? `✅ ${r.date} ${r.time} · ${r.broadcastId}`
+          : `⚠️ ${r.lineNo}번째 줄: ${r.error} ("${r.raw}")`;
+        const color = r.ok ? 'var(--brand-dark)' : '#c0392b';
+        return `<div style="color:${color};">${escapeHtml(text)}</div>`;
+      })
+      .join('');
+
+    const okCount = parsedQuickRows.filter((r) => r.ok).length;
+    if (okCount > 0) {
+      quickAddBtn.style.display = 'block';
+      quickAddBtn.textContent = `+ ${okCount}개 예약 일괄 등록`;
+    } else {
+      quickAddBtn.style.display = 'none';
+    }
+  }
 
   quickInput.addEventListener('input', () => {
-    const raw = quickInput.value.trim();
-    if (!raw) { quickPreview.textContent = ''; return; }
+    parseQuickLines();
+    renderQuickPreview();
+  });
 
-    // "/" 구분자 기준 3칸(라이브ID / 날짜 / 시각)을 기대합니다. 앞뒤 공백은 무시합니다.
-    const parts = raw.split('/').map((p) => p.trim()).filter(Boolean);
-    if (parts.length !== 3) {
-      quickPreview.textContent = '⚠️ "라이브ID / 날짜 / 시각" 형태로 "/"로 구분해서 입력해주세요.';
-      quickPreview.style.color = '#c0392b';
-      return;
-    }
-    const [idPart, datePart, timePart] = parts;
+  quickAddBtn.addEventListener('click', async () => {
+    const validRows = parsedQuickRows.filter((r) => r.ok);
+    if (validRows.length === 0) return;
+    if (!confirm(`${validRows.length}개의 라이브 예약을 한 번에 등록할까요?`)) return;
 
-    const broadcastIdOk = /^\d+$/.test(idPart);
-    const parsedDate = parseFlexibleDate(datePart);
-    const parsedTime = parseFlexibleTime(timePart);
+    quickAddBtn.disabled = true;
+    const payload = validRows.map((r) => ({
+      datetime: `${r.date}T${r.time}:00+09:00`, // 한국 표준시(KST, UTC+9) 고정 오프셋
+      broadcast_id: r.broadcastId,
+    }));
+    const { error } = await supabaseClient.from('live_schedule').insert(payload);
+    quickAddBtn.disabled = false;
+    if (error) { showSaveStatus('일괄 등록 실패: ' + error.message, 'err'); return; }
 
-    if (!broadcastIdOk || !parsedDate || !parsedTime) {
-      const problems = [];
-      if (!broadcastIdOk) problems.push('라이브ID(숫자만)');
-      if (!parsedDate) problems.push('날짜');
-      if (!parsedTime) problems.push('시각');
-      quickPreview.textContent = `⚠️ 알아볼 수 없는 값: ${problems.join(', ')}`;
-      quickPreview.style.color = '#c0392b';
-      return;
-    }
-
-    // 알아본 값을 아래 3개 입력창에 그대로 채워줍니다 (각 입력창의 미리보기도 같이 갱신됨).
-    document.getElementById('newLiveScheduleBroadcastId').value = idPart;
-    const dateText = document.getElementById('newLiveScheduleDateText');
-    const timeText = document.getElementById('newLiveScheduleTimeText');
-    dateText.value = datePart;
-    dateText.dispatchEvent(new Event('input'));
-    timeText.value = timePart;
-    timeText.dispatchEvent(new Event('input'));
-
-    quickPreview.textContent = `→ 라이브 ${idPart} · ${formatDateForStorage(parsedDate)} ${formatTimeForStorage(parsedTime)} 로 아래 칸에 채웠습니다. 확인 후 "+ 예약 추가"를 눌러주세요.`;
-    quickPreview.style.color = 'var(--brand-dark)';
+    showSaveStatus(`${validRows.length}개 예약 등록됨 ✓`, 'ok');
+    quickInput.value = '';
+    parsedQuickRows = [];
+    renderQuickPreview();
+    await loadLiveSchedule();
   });
 }
 
@@ -276,8 +318,10 @@ async function addLiveSchedule() {
   dateText.value = ''; timeText.value = ''; idInput.value = '';
   const quickInput = document.getElementById('newLiveScheduleQuickInput');
   const quickPreview = document.getElementById('newLiveScheduleQuickPreview');
+  const quickAddBtn = document.getElementById('newLiveScheduleQuickAddBtn');
   if (quickInput) quickInput.value = '';
-  if (quickPreview) quickPreview.textContent = '';
+  if (quickPreview) quickPreview.innerHTML = '';
+  if (quickAddBtn) quickAddBtn.style.display = 'none';
   datePreview.textContent = ''; timePreview.textContent = '';
   showSaveStatus('저장됨 ✓', 'ok');
   await loadLiveSchedule();
