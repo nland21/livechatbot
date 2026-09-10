@@ -1678,13 +1678,21 @@
               <div class="card">
                 <h3>+ 새 예약</h3>
                 <div class="field">
-                  <label>빠른 입력 (라이브ID / 날짜 / 시각)</label>
-                  <input
-                    type="text"
+                  <label>빠른 입력 (날짜 / 시각 / 라이브ID) — 한 줄에 하나씩, 여러 줄도 가능</label>
+                  <textarea
                     id="newLiveScheduleQuickInput"
-                    placeholder="예: 2024688 / 2026.09.11 / 22:00"
-                  />
+                    rows="4"
+                    placeholder="예:&#10;2026-09-12 / 22:00 / 2024695&#10;2026-09-12 / 20:00 / 2024694&#10;2026-09-12 / 09:00 / 2024690"
+                  ></textarea>
                   <div class="hint" id="newLiveScheduleQuickPreview" style="margin-top:4px;"></div>
+                  <button
+                    type="button"
+                    class="btn btn-outline btn-block"
+                    id="newLiveScheduleQuickAddBtn"
+                    style="margin-top:8px; display:none;"
+                  >
+                    일괄 등록
+                  </button>
                 </div>
                 <div class="field">
                   <label>시작 날짜</label>
