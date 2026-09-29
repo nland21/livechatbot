@@ -90,6 +90,25 @@ function bindEvents() {
   document.getElementById('exportSpecJsonBtn').addEventListener('click', exportSpecsAsJson);
   document.getElementById('exportSpecXlsxBtn').addEventListener('click', exportSpecsAsXlsx);
 
+  document.getElementById('benefitModeManualBtn').addEventListener('click', () => switchBenefitMode('manual'));
+  document.getElementById('benefitModeImportBtn').addEventListener('click', () => switchBenefitMode('import'));
+  document.getElementById('saveBenefitBtn').addEventListener('click', saveBenefit);
+  document.getElementById('cancelBenefitEditBtn').addEventListener('click', resetBenefitForm);
+  document.getElementById('benefitFileInput').addEventListener('change', handleBenefitFileSelected);
+  document.getElementById('importBenefitsBtn').addEventListener('click', importBenefitsFromFile);
+  document.getElementById('downloadBenefitJsonSampleBtn').addEventListener('click', downloadBenefitJsonSample);
+  document.getElementById('downloadBenefitXlsxSampleBtn').addEventListener('click', downloadBenefitXlsxSample);
+  document.getElementById('downloadBenefitCsvSampleBtn').addEventListener('click', downloadBenefitCsvSample);
+  document.getElementById('benefitSelectAllCheckbox').addEventListener('change', (e) => {
+    if (e.target.checked) productBenefits.forEach((b) => selectedBenefitIds.add(b.id));
+    else selectedBenefitIds.clear();
+    renderBenefitList();
+  });
+  document.getElementById('benefitEnableBtn').addEventListener('click', () => bulkSetBenefitsEnabled(true));
+  document.getElementById('benefitDisableBtn').addEventListener('click', () => bulkSetBenefitsEnabled(false));
+  document.getElementById('exportBenefitJsonBtn').addEventListener('click', exportBenefitsAsJson);
+  document.getElementById('exportBenefitXlsxBtn').addEventListener('click', exportBenefitsAsXlsx);
+
   const addAccountBtn = document.getElementById('addAccountBtn');
   if (addAccountBtn) addAccountBtn.addEventListener('click', createAccount);
 

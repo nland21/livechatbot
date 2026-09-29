@@ -8,6 +8,7 @@ let keywordRules = [];
 let aiSkills = [];
 let liveSchedule = [];
 let productSpecs = [];
+let productBenefits = [];
 let broadcastSettings = {
   scheduled_interval_sec: 300, scheduled_mode: 'sequential', keyword_reply_interval_sec: 15,
   ai_role_instructions: '', ai_tone_guide: '',
@@ -15,7 +16,7 @@ let broadcastSettings = {
 };
 
 async function loadAll() {
-  await Promise.all([loadBroadcastSettings(), loadScheduled(), loadKeywords(), loadSkills(), loadLiveSchedule(), loadProductSpecs()]);
+  await Promise.all([loadBroadcastSettings(), loadScheduled(), loadKeywords(), loadSkills(), loadLiveSchedule(), loadProductSpecs(), loadProductBenefits()]);
 }
 
 async function loadBroadcastSettings() {
