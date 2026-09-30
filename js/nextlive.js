@@ -107,6 +107,25 @@ function formatDatetime24h(dateObj) {
 
 const BROADCAST_DURATION_MS = 2 * 60 * 60 * 1000; // 라이브 방송 시간(고정 2시간) — 이 시간이 지나면 "종료"로 표시합니다.
 
+function isScheduleEntryEnded(entry) {
+  const dt = new Date(entry.datetime);
+  return !Number.isNaN(dt.getTime()) && Date.now() >= dt.getTime() + BROADCAST_DURATION_MS;
+}
+
+async function deleteEndedSchedules() {
+  const ended = liveSchedule.filter(isScheduleEntryEnded);
+  if (ended.length === 0) { alert('종료된 예약이 없습니다.'); return; }
+  if (!confirm(`종료된 예약 ${ended.length}개를 모두 삭제할까요? (되돌릴 수 없습니다)`)) return;
+
+  const { error } = await supabaseClient
+    .from('live_schedule')
+    .delete()
+    .in('id', ended.map((e) => e.id));
+  if (error) { showSaveStatus('일괄 삭제 실패: ' + error.message, 'err'); return; }
+  showSaveStatus(`종료된 예약 ${ended.length}개 삭제됨 ✓`, 'ok');
+  await loadLiveSchedule();
+}
+
 function renderLiveScheduleList() {
   const ul = document.getElementById('liveScheduleList');
   ul.innerHTML = '';
@@ -119,7 +138,7 @@ function renderLiveScheduleList() {
     const dt = new Date(entry.datetime);
     const dtLabel = Number.isNaN(dt.getTime()) ? entry.datetime : formatDatetime24h(dt);
     const isLive = liveBroadcastIds.has(String(entry.broadcast_id));
-    const isEnded = !Number.isNaN(dt.getTime()) && Date.now() >= dt.getTime() + BROADCAST_DURATION_MS;
+    const isEnded = isScheduleEntryEnded(entry);
     if (isEnded) li.style.opacity = '0.55';
     // 종료되지 않은(LIVE·대기중) 예약만 라이브 아이디를 눌러서 복사할 수 있게 합니다.
     // "로컬PC 상태" 탭에서 라이브 이동시킬 때 붙여넣기 편하도록 하기 위함입니다.

@@ -53,6 +53,7 @@ function bindEvents() {
   document.getElementById('scheduledSaveEditBtn').addEventListener('click', saveScheduledEdits);
   document.getElementById('addKeywordBtn').addEventListener('click', addKeywordRule);
   document.getElementById('addLiveScheduleBtn').addEventListener('click', addLiveSchedule);
+  document.getElementById('deleteEndedSchedulesBtn').addEventListener('click', deleteEndedSchedules);
 
   document.getElementById('skillScope').addEventListener('change', (e) => {
     document.getElementById('skillBroadcastIdField').style.display = e.target.value === 'broadcast' ? 'block' : 'none';
@@ -72,6 +73,7 @@ function bindEvents() {
   });
   document.getElementById('exportSkillJsonBtn').addEventListener('click', exportSkillsAsJson);
   document.getElementById('exportSkillXlsxBtn').addEventListener('click', exportSkillsAsXlsx);
+  document.getElementById('deleteSelectedSkillsBtn').addEventListener('click', bulkDeleteSelectedSkills);
 
   document.getElementById('specModeManualBtn').addEventListener('click', () => switchSpecMode('manual'));
   document.getElementById('specModeJsonBtn').addEventListener('click', () => switchSpecMode('json'));
@@ -89,6 +91,7 @@ function bindEvents() {
   document.getElementById('specDisableBtn').addEventListener('click', () => bulkSetSpecsEnabled(false));
   document.getElementById('exportSpecJsonBtn').addEventListener('click', exportSpecsAsJson);
   document.getElementById('exportSpecXlsxBtn').addEventListener('click', exportSpecsAsXlsx);
+  document.getElementById('deleteSelectedSpecsBtn').addEventListener('click', bulkDeleteSelectedSpecs);
 
   document.getElementById('benefitModeManualBtn').addEventListener('click', () => switchBenefitMode('manual'));
   document.getElementById('benefitModeImportBtn').addEventListener('click', () => switchBenefitMode('import'));
@@ -108,6 +111,7 @@ function bindEvents() {
   document.getElementById('benefitDisableBtn').addEventListener('click', () => bulkSetBenefitsEnabled(false));
   document.getElementById('exportBenefitJsonBtn').addEventListener('click', exportBenefitsAsJson);
   document.getElementById('exportBenefitXlsxBtn').addEventListener('click', exportBenefitsAsXlsx);
+  document.getElementById('deleteSelectedBenefitsBtn').addEventListener('click', bulkDeleteSelectedBenefits);
 
   const addAccountBtn = document.getElementById('addAccountBtn');
   if (addAccountBtn) addAccountBtn.addEventListener('click', createAccount);

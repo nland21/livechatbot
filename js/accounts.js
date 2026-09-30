@@ -40,8 +40,17 @@ function renderAccountList() {
         <button class="btn btn-outline btn-sm acc-cancel-name-btn">취소</button>
       </div>`;
 
+    const passwordRow = `
+      <button class="btn btn-outline btn-sm acc-edit-password-btn" style="margin-top:8px;">🔑 비밀번호 변경</button>
+      <div class="acc-password-edit-row" style="display:none; gap:6px; margin-top:6px;">
+        <input type="password" class="acc-password-input" placeholder="새 비밀번호 (8자 이상)" style="flex:1;" />
+        <button class="btn btn-primary btn-sm acc-save-password-btn">변경</button>
+        <button class="btn btn-outline btn-sm acc-cancel-password-btn">취소</button>
+      </div>`;
+
     if (isMaster) {
       // 마스터관리자 본인 계정은 역할 변경/차단/삭제를 할 수 없고, 닉네임만 수정 가능합니다.
+      // 본인 비밀번호도 이 기능(다른 계정용)으로는 바꿀 수 없어 여기엔 넣지 않습니다.
       li.innerHTML = nameRow;
     } else {
       li.innerHTML = nameRow + `
@@ -53,7 +62,8 @@ function renderAccountList() {
           </select>
           <button class="btn btn-outline btn-sm acc-block-btn">${isBlocked ? '🔓 로그인 허용' : '🔒 강제 로그아웃'}</button>
           <button class="btn-danger-outline deactivate-btn">삭제</button>
-        </div>`;
+        </div>
+        ${passwordRow}`;
     }
 
     li.querySelector('.acc-name').textContent = acc.display_name || '(닉네임 없음)';
@@ -96,8 +106,26 @@ function renderAccountList() {
       await deactivateAccount(acc.user_id, acc.email);
     });
 
+    // 비밀번호 변경 (마스터관리자가 "다른" 계정의 비밀번호를 서버 쪽 Edge Function을
+    // 통해 바꿉니다 — 브라우저에는 service_role 키가 절대 내려오지 않습니다)
+    const pwInput = li.querySelector('.acc-password-input');
+    const pwEditRow = li.querySelector('.acc-password-edit-row');
+    li.querySelector('.acc-edit-password-btn').addEventListener('click', () => {
+      pwInput.value = '';
+      pwEditRow.style.display = 'flex';
+      pwInput.focus();
+    });
+    li.querySelector('.acc-cancel-password-btn').addEventListener('click', () => {
+      pwEditRow.style.display = 'none';
+    });
+    li.querySelector('.acc-save-password-btn').addEventListener('click', async () => {
+      await resetAccountPassword(acc.user_id, acc.email, pwInput.value, pwEditRow);
+    });
+
     ul.appendChild(li);
   });
+
+  renderActiveAccountsList();
 }
 
 async function updateAccountRole(userId, newRole) {
@@ -130,6 +158,73 @@ async function deactivateAccount(userId, email) {
   if (error) { alert('삭제 실패: ' + error.message); return; }
   showSaveStatus('삭제되었습니다 ✓', 'ok');
   await loadAccounts();
+}
+
+// 다른 사람의 비밀번호를 바꾸는 건 Supabase 관리자 전용 API(service_role 필요)라서,
+// service_role 키를 브라우저에 두지 않기 위해 서버의 Edge Function을 통해서만 처리합니다.
+async function resetAccountPassword(userId, email, newPassword, pwEditRow) {
+  const password = (newPassword || '').trim();
+  if (!password) { alert('새 비밀번호를 입력해주세요.'); return; }
+  if (password.length < 8) { alert('비밀번호는 8자 이상으로 입력해주세요.'); return; }
+  if (!confirm(`"${email}" 계정의 비밀번호를 변경할까요?`)) return;
+
+  const { data: sessionData } = await supabaseClient.auth.getSession();
+  const accessToken = sessionData?.session?.access_token;
+  if (!accessToken) { alert('로그인 세션을 확인할 수 없습니다. 새로고침 후 다시 시도해주세요.'); return; }
+
+  try {
+    const res = await fetch(`${SUPABASE_CONFIG.url}/functions/v1/admin-reset-password`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+        apikey: SUPABASE_CONFIG.anonKey,
+      },
+      body: JSON.stringify({ targetUserId: userId, newPassword: password }),
+    });
+    const result = await res.json().catch(() => ({}));
+    if (!res.ok || result.error) {
+      alert('비밀번호 변경 실패: ' + (result.error || `서버 오류 (${res.status})`));
+      return;
+    }
+    if (pwEditRow) pwEditRow.style.display = 'none';
+    showSaveStatus(`"${email}" 계정의 비밀번호가 변경되었습니다 ✓`, 'ok');
+  } catch (err) {
+    alert('비밀번호 변경 중 오류: ' + err.message);
+  }
+}
+
+// "현재 접속 중"인 계정 목록 — 이미 불러와둔 accounts 배열을 그대로 재사용합니다
+// (별도 조회 없이, last_active_at이 최근 2분 이내인 계정만 골라서 보여줍니다).
+// last_active_at은 로그인한 각 계정이 웹페이지를 열어둔 동안 45초마다 스스로 갱신합니다.
+const ACTIVE_PRESENCE_WINDOW_MS = 2 * 60 * 1000;
+
+function renderActiveAccountsList() {
+  const container = document.getElementById('activeAccountList');
+  if (!container) return;
+
+  const now = Date.now();
+  const active = accounts
+    .filter((acc) => acc.last_active_at && now - new Date(acc.last_active_at).getTime() <= ACTIVE_PRESENCE_WINDOW_MS)
+    .sort((a, b) => new Date(b.last_active_at) - new Date(a.last_active_at));
+
+  if (active.length === 0) {
+    container.innerHTML = '<p class="hint">지금 접속 중인 계정이 없습니다.</p>';
+    return;
+  }
+
+  container.innerHTML = active.map((acc) => {
+    const secondsAgo = Math.max(0, Math.round((now - new Date(acc.last_active_at).getTime()) / 1000));
+    const roleLabel = acc.role === 'master_admin' ? '마스터관리자' : (ROLE_LABELS[acc.role] || acc.role);
+    return `
+      <div style="display:flex; align-items:center; gap:8px; padding:8px 10px; border:1px solid var(--border); border-radius:8px; margin-bottom:6px;">
+        <span style="width:8px; height:8px; border-radius:50%; background:var(--brand); flex-shrink:0;"></span>
+        <b>${escapeHtml(acc.display_name || acc.email)}</b>
+        <span class="hint" style="margin:0;">${escapeHtml(acc.email)}</span>
+        <span class="chip" style="background:var(--brand-soft); color:var(--brand-dark);">${escapeHtml(roleLabel)}</span>
+        <span class="hint" style="margin:0 0 0 auto;">${secondsAgo < 60 ? `${secondsAgo}초 전` : `${Math.round(secondsAgo / 60)}분 전`} 활동</span>
+      </div>`;
+  }).join('');
 }
 
 async function createAccount() {

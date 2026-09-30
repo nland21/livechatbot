@@ -15,10 +15,16 @@ function getSortedSkills(skills) {
   );
 }
 
-let selectedSkillIds = new Set(); // 내보내기용 선택 상태
+let selectedSkillIds = new Set(); // 내보내기/삭제용 선택 상태
 
 let expandedSkillIds = new Set();   // 지금 펼쳐진 스킬 카드들
 let inlineEditingSkillId = null;    // 지금 카드 안에서 바로 수정 중인 스킬
+
+// 드래그로 순서 바꾸기 상태 — 같은 그룹(공통 전체, 또는 특정 라이브 전용) 안에서만 허용
+// 합니다. draggedGroupIds로 "지금 집은 카드가 속한 그룹"을 기억해두고, 드롭 대상이 그
+// 그룹 안에 있는지 확인해서 다른 그룹으로 잘못 옮겨지는 걸 막습니다.
+let draggedSkillId = null;
+let draggedGroupIds = [];
 
 function buildSkillCard(skill, displayIndex, groupSkills) {
   const card = document.createElement('div');
@@ -39,19 +45,13 @@ function buildSkillCard(skill, displayIndex, groupSkills) {
     ? skill.keywords.map((k) => `<span class="chip">${escapeHtml(k)}</span>`).join('')
     : '<span class="chip" style="background:var(--brand-soft);color:var(--brand-dark);font-weight:700;">항상 포함</span>';
 
-  const isFirst = displayIndex === 0;
-  const isLast = displayIndex === groupSkills.length - 1;
-
   card.innerHTML = `
     <div class="skill-card-header" style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;cursor:pointer;">
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
         <input type="checkbox" class="skill-select-checkbox" data-id="${skill.id}" style="margin:0;" />
         <span style="display:inline-block;width:12px;color:var(--sub);">${isExpanded ? '▾' : '▸'}</span>
+        <span class="skill-drag-handle" title="끌어서 순서 바꾸기" style="cursor:grab;font-size:15px;color:var(--sub);padding:0 2px;line-height:1;">⠿</span>
         <span class="priority-badge">우선순위 ${displayIndex + 1}</span>
-        <span style="display:flex;flex-direction:column;gap:0;">
-          <button class="skill-move-up" title="우선순위 올리기" ${isFirst ? 'disabled' : ''} style="border:none;background:none;cursor:${isFirst ? 'default' : 'pointer'};line-height:10px;font-size:10px;color:${isFirst ? 'var(--border)' : 'var(--sub)'};padding:0;">▲</button>
-          <button class="skill-move-down" title="우선순위 내리기" ${isLast ? 'disabled' : ''} style="border:none;background:none;cursor:${isLast ? 'default' : 'pointer'};line-height:10px;font-size:10px;color:${isLast ? 'var(--border)' : 'var(--sub)'};padding:0;">▼</button>
-        </span>
         <b></b>
         ${scopeBadge}
       </div>
@@ -73,7 +73,7 @@ function buildSkillCard(skill, displayIndex, groupSkills) {
   card.querySelector('.skill-card-header').addEventListener('click', (e) => {
     if (e.target.closest('.skill-card-actions')) return;
     if (e.target.closest('.skill-select-checkbox')) return;
-    if (e.target.closest('.skill-move-up') || e.target.closest('.skill-move-down')) return;
+    if (e.target.closest('.skill-drag-handle')) return;
     if (expandedSkillIds.has(skill.id)) expandedSkillIds.delete(skill.id);
     else expandedSkillIds.add(skill.id);
     renderSkills();
@@ -87,18 +87,41 @@ function buildSkillCard(skill, displayIndex, groupSkills) {
   });
   card.querySelector('.skill-select-checkbox').checked = selectedSkillIds.has(skill.id);
 
-  if (!isFirst) {
-    card.querySelector('.skill-move-up').addEventListener('click', (e) => {
-      e.stopPropagation();
-      moveSkillPriority(groupSkills, displayIndex, displayIndex - 1);
-    });
-  }
-  if (!isLast) {
-    card.querySelector('.skill-move-down').addEventListener('click', (e) => {
-      e.stopPropagation();
-      moveSkillPriority(groupSkills, displayIndex, displayIndex + 1);
-    });
-  }
+  // 드래그 핸들만 실제로 끌 수 있게 하고(카드 전체를 draggable로 두면 글자 선택이 불편해짐),
+  // 드래그 자체는 카드 전체(card)에 대해 일어나도록 handle에서 카드로 이벤트를 위임합니다.
+  const handle = card.querySelector('.skill-drag-handle');
+  handle.addEventListener('mousedown', () => { card.draggable = true; });
+  card.addEventListener('dragstart', (e) => {
+    draggedSkillId = skill.id;
+    draggedGroupIds = groupSkills.map((s) => s.id);
+    e.dataTransfer.effectAllowed = 'move';
+    card.style.opacity = '0.4';
+  });
+  card.addEventListener('dragend', () => {
+    card.draggable = false;
+    card.style.opacity = skill.enabled ? '1' : '0.5';
+    card.style.borderTop = '';
+    draggedSkillId = null;
+    draggedGroupIds = [];
+  });
+  card.addEventListener('dragover', (e) => {
+    if (!draggedSkillId || draggedSkillId === skill.id || !draggedGroupIds.includes(skill.id)) return;
+    e.preventDefault(); // 이게 있어야 drop 이벤트가 발생합니다
+    card.style.borderTop = '3px solid var(--brand)';
+  });
+  card.addEventListener('dragleave', () => { card.style.borderTop = ''; });
+  card.addEventListener('drop', (e) => {
+    e.preventDefault();
+    card.style.borderTop = '';
+    if (!draggedSkillId || draggedSkillId === skill.id || !draggedGroupIds.includes(skill.id)) return;
+    const reordered = [...groupSkills];
+    const fromIdx = reordered.findIndex((s) => s.id === draggedSkillId);
+    const toIdx = reordered.findIndex((s) => s.id === skill.id);
+    if (fromIdx < 0 || toIdx < 0) return;
+    const [moved] = reordered.splice(fromIdx, 1);
+    reordered.splice(toIdx, 0, moved);
+    persistSkillGroupOrder(reordered);
+  });
 
   card.querySelector('.skill-enable').addEventListener('click', (e) => e.stopPropagation());
   card.querySelector('.skill-enable').addEventListener('change', async (e) => {
@@ -126,19 +149,29 @@ function buildSkillCard(skill, displayIndex, groupSkills) {
   return card;
 }
 
-// 같은 그룹(공통 전체, 또는 특정 라이브 전용) 안에서만 순서를 바꿉니다. 바뀐 순서 그대로
-// 0, 1, 2...로 우선순위 값을 다시 매겨서 저장합니다 — 값이 항상 깔끔한 연속 정수로 유지됩니다.
-async function moveSkillPriority(groupSkills, fromIndex, toIndex) {
-  const reordered = [...groupSkills];
-  const [moved] = reordered.splice(fromIndex, 1);
-  reordered.splice(toIndex, 0, moved);
-
-  const updates = reordered.map((s, i) => ({ id: s.id, priority: i }));
+// 같은 그룹(공통 전체, 또는 특정 라이브 전용) 안의 새 순서를 그대로 0, 1, 2...로 우선순위
+// 값을 다시 매겨서 저장합니다 — 값이 항상 깔끔한 연속 정수로 유지됩니다. 드래그로 순서를
+// 바꾼 뒤 이 함수 하나로 저장까지 끝냅니다.
+async function persistSkillGroupOrder(reorderedGroup) {
+  const updates = reorderedGroup.map((s, i) => ({ id: s.id, priority: i }));
   const results = await Promise.all(
     updates.map(({ id, priority }) => supabaseClient.from('ai_skills').update({ priority }).eq('id', id)),
   );
   const failed = results.find((r) => r.error);
   if (failed) { showSaveStatus('우선순위 저장 실패: ' + failed.error.message, 'err'); return; }
+  await loadSkills();
+}
+
+// 삭제는 되돌릴 수 없어서, 반드시 하나 이상 선택해야만 동작합니다.
+async function bulkDeleteSelectedSkills() {
+  const ids = Array.from(selectedSkillIds);
+  if (ids.length === 0) { alert('삭제할 항목을 먼저 선택해주세요.'); return; }
+  if (!confirm(`선택한 스킬 ${ids.length}개를 삭제할까요? (되돌릴 수 없습니다)`)) return;
+
+  const { error } = await supabaseClient.from('ai_skills').delete().in('id', ids);
+  if (error) { showSaveStatus('삭제 실패: ' + error.message, 'err'); return; }
+  ids.forEach((id) => { selectedSkillIds.delete(id); expandedSkillIds.delete(id); });
+  showSaveStatus(`${ids.length}개 삭제됨 ✓`, 'ok');
   await loadSkills();
 }
 

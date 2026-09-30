@@ -94,6 +94,19 @@ function specToExportRow(spec) {
   };
 }
 
+// 삭제는 되돌릴 수 없어서, 켜기/끄기·내보내기와 달리 "선택 안 하면 전체"로 처리하지
+// 않습니다 — 반드시 하나 이상 선택해야만 동작합니다.
+async function bulkDeleteSelectedSpecs() {
+  const ids = getSelectedSpecIds();
+  if (ids.length === 0) { alert('삭제할 항목을 먼저 선택해주세요.'); return; }
+  if (!confirm(`선택한 제품 스펙 ${ids.length}개를 삭제할까요? (되돌릴 수 없습니다)`)) return;
+
+  const { error } = await supabaseClient.from('product_specs').delete().in('id', ids);
+  if (error) { showSaveStatus('삭제 실패: ' + error.message, 'err'); return; }
+  showSaveStatus(`${ids.length}개 삭제됨 ✓`, 'ok');
+  await loadProductSpecs();
+}
+
 // 체크된 항목이 있으면 그것만, 없으면 전체의 사용 여부를 한 번에 바꿉니다.
 async function bulkSetSpecsEnabled(nextEnabled) {
   const specs = getSpecsForExport(); // "선택했으면 선택한 것만, 아니면 전체" 규칙을 export와 그대로 공유합니다.

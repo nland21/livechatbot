@@ -166,6 +166,19 @@ function benefitToExportRow(b) {
   };
 }
 
+// 삭제는 되돌릴 수 없어서, 켜기/끄기·내보내기와 달리 "선택 안 하면 전체"로 처리하지
+// 않습니다 — 반드시 하나 이상 선택해야만 동작합니다.
+async function bulkDeleteSelectedBenefits() {
+  const ids = getSelectedBenefitIds();
+  if (ids.length === 0) { alert('삭제할 항목을 먼저 선택해주세요.'); return; }
+  if (!confirm(`선택한 상품 혜택 ${ids.length}개를 삭제할까요? (되돌릴 수 없습니다)`)) return;
+
+  const { error } = await supabaseClient.from('product_benefits').delete().in('id', ids);
+  if (error) { showSaveStatus('삭제 실패: ' + error.message, 'err'); return; }
+  showSaveStatus(`${ids.length}개 삭제됨 ✓`, 'ok');
+  await loadProductBenefits();
+}
+
 async function bulkSetBenefitsEnabled(nextEnabled) {
   const benefits = getBenefitsForExport();
   if (benefits.length === 0) { alert('대상 상품 혜택이 없습니다.'); return; }
