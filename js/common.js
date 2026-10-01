@@ -153,7 +153,9 @@ async function afterLogin(session) {
 
   // "지금 이 계정이 접속 중"임을 표시합니다 (계정 관리 탭의 "현재 접속 중" 목록용).
   // 실패해도(예: 함수가 아직 배포 안 됐어도) 로그인 자체엔 영향 없도록 조용히 무시합니다.
-  const touchPresence = () => supabaseClient.rpc('touch_my_presence').catch(() => {});
+  // supabaseClient.rpc(...)는 진짜 Promise가 아니라 "then은 있지만 catch는 없는" 객체라서
+  // Promise.resolve()로 한번 감싸야 .catch()를 안전하게 쓸 수 있습니다.
+  const touchPresence = () => Promise.resolve(supabaseClient.rpc('touch_my_presence')).catch(() => {});
   touchPresence();
   setInterval(touchPresence, 45000);
 }
