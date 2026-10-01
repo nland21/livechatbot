@@ -5,7 +5,7 @@
 //  사은품(gifts) = 여러 개 자유롭게 추가
 // ============================================================
 
-let editingBenefitId = null;
+let inlineEditingBenefitId = null; // 지금 카드 안에서 바로 수정 중인 모델 (상단 폼은 "새 혜택 등록" 전용)
 let selectedBenefitIds = new Set();
 let expandedBenefitIds = new Set();
 let parsedBenefitImportRows = [];
@@ -52,6 +52,13 @@ function renderBenefitList() {
 
     const card = document.createElement('div');
     card.style.cssText = `border:1px solid var(--border); border-radius:8px; padding:12px; margin-bottom:8px; opacity:${enabled ? '1' : '0.5'};`;
+
+    if (inlineEditingBenefitId === b.id) {
+      card.style.opacity = '1';
+      renderInlineBenefitEditForm(card, b);
+      container.appendChild(card);
+      return;
+    }
 
     const headerHtml = `
       <div class="benefit-card-header" style="display:flex; align-items:flex-start; gap:10px; cursor:pointer;">
@@ -261,29 +268,82 @@ function switchBenefitMode(mode) {
   }
 }
 
+// "수정"을 누르면 상단 폼이 아니라, 그 카드 자체가 바로 입력 폼으로 바뀝니다
+// (스킬 관리 탭과 동일한 방식). 상단 폼은 이제 "새 혜택 등록" 전용입니다.
 function startEditBenefit(b) {
-  editingBenefitId = b.id;
-  document.getElementById('benefitFormTitle').textContent = `"${b.model_name}" 수정`;
-  document.getElementById('benefitModelName').value = b.model_name || '';
-  document.getElementById('benefitProductCode').value = b.product_code || '';
-  document.getElementById('benefitActualPrice').value = b.actual_price ?? '';
-  document.getElementById('benefitMaxBenefitPrice').value = b.max_benefit_price ?? '';
-  document.getElementById('benefitDiscounts').value = objectToPairsText(b.discounts);
-  document.getElementById('benefitRewards').value = objectToPairsText(b.rewards);
-  document.getElementById('benefitGifts').value = Array.isArray(b.gifts) ? b.gifts.join(', ') : '';
-  document.getElementById('saveBenefitBtn').textContent = '수정 저장';
-  document.getElementById('cancelBenefitEditBtn').style.display = 'inline-block';
-  switchBenefitMode('manual');
+  inlineEditingBenefitId = b.id;
+  renderBenefitList();
+}
+
+function renderInlineBenefitEditForm(container, b) {
+  container.innerHTML = `
+    <h3 style="margin:0 0 12px; font-size:14px;">✏️ "${escapeHtml(b.model_name)}" 수정</h3>
+    <div class="row-2">
+      <div class="field"><label>모델명</label><input type="text" class="ie-benefit-model" /></div>
+      <div class="field"><label>상품코드</label><input type="text" class="ie-benefit-code" /></div>
+    </div>
+    <div class="row-2">
+      <div class="field"><label>실제 결제가</label><input type="number" class="ie-benefit-price" /></div>
+      <div class="field"><label>라이브 최대혜택가</label><input type="number" class="ie-benefit-maxprice" /></div>
+    </div>
+    <div class="field"><label>💳 쿠폰・카드할인 (한 줄에 하나씩, "이름=금액")</label>
+      <textarea class="ie-benefit-discounts" style="min-height:60px;font-family:monospace;font-size:11.5px;"></textarea>
+    </div>
+    <div class="field"><label>🏷️ 적립금 (한 줄에 하나씩, "이름=금액")</label>
+      <textarea class="ie-benefit-rewards" style="min-height:60px;font-family:monospace;font-size:11.5px;"></textarea>
+    </div>
+    <div class="field"><label>🎁 사은품 (쉼표로 구분)</label><input type="text" class="ie-benefit-gifts" /></div>
+    <div style="display:flex; gap:8px;">
+      <button class="btn btn-primary ie-benefit-save" style="flex:1;">수정 내용 저장</button>
+      <button class="btn btn-outline ie-benefit-cancel">취소</button>
+    </div>`;
+
+  const els = {
+    model: container.querySelector('.ie-benefit-model'),
+    code: container.querySelector('.ie-benefit-code'),
+    price: container.querySelector('.ie-benefit-price'),
+    maxPrice: container.querySelector('.ie-benefit-maxprice'),
+    discounts: container.querySelector('.ie-benefit-discounts'),
+    rewards: container.querySelector('.ie-benefit-rewards'),
+    gifts: container.querySelector('.ie-benefit-gifts'),
+  };
+  els.model.value = b.model_name || '';
+  els.code.value = b.product_code || '';
+  els.price.value = b.actual_price ?? '';
+  els.maxPrice.value = b.max_benefit_price ?? '';
+  els.discounts.value = objectToPairsText(b.discounts);
+  els.rewards.value = objectToPairsText(b.rewards);
+  els.gifts.value = Array.isArray(b.gifts) ? b.gifts.join(', ') : '';
+
+  container.querySelector('.ie-benefit-cancel').addEventListener('click', () => {
+    inlineEditingBenefitId = null;
+    renderBenefitList();
+  });
+  container.querySelector('.ie-benefit-save').addEventListener('click', async () => {
+    const modelName = els.model.value.trim();
+    if (!modelName) { alert('모델명을 입력해주세요.'); return; }
+
+    const payload = {
+      model_name: modelName,
+      product_code: els.code.value.trim() || null,
+      actual_price: els.price.value.trim() || null,
+      max_benefit_price: els.maxPrice.value.trim() || null,
+      discounts: pairsTextToObject(els.discounts.value),
+      rewards: pairsTextToObject(els.rewards.value),
+      gifts: els.gifts.value.split(',').map((g) => g.trim()).filter(Boolean),
+    };
+    const { error } = await supabaseClient.from('product_benefits').update(payload).eq('id', b.id);
+    if (error) { showSaveStatus('저장 실패: ' + error.message, 'err'); return; }
+    inlineEditingBenefitId = null;
+    showSaveStatus('저장됨 ✓', 'ok');
+    await loadProductBenefits();
+  });
 }
 
 function resetBenefitForm() {
-  editingBenefitId = null;
-  document.getElementById('benefitFormTitle').textContent = '+ 새 혜택 등록';
   ['benefitModelName', 'benefitProductCode', 'benefitActualPrice', 'benefitMaxBenefitPrice', 'benefitDiscounts', 'benefitRewards', 'benefitGifts'].forEach((id) => {
     document.getElementById(id).value = '';
   });
-  document.getElementById('saveBenefitBtn').textContent = '혜택 등록';
-  document.getElementById('cancelBenefitEditBtn').style.display = 'none';
 }
 
 async function saveBenefit() {
@@ -300,14 +360,9 @@ async function saveBenefit() {
     gifts: document.getElementById('benefitGifts').value.split(',').map((g) => g.trim()).filter(Boolean),
   };
 
-  let error;
-  if (editingBenefitId) {
-    ({ error } = await supabaseClient.from('product_benefits').update(payload).eq('id', editingBenefitId));
-  } else {
-    // 같은 모델명이 이미 있으면 새로 추가하는 대신 덮어씁니다 — "혜택이 가장 좋은 상품코드 하나만
-    // 남긴다"는 운영 방식이 자연스럽게 지켜지도록 하기 위함입니다.
-    ({ error } = await supabaseClient.from('product_benefits').upsert(payload, { onConflict: 'model_name' }));
-  }
+  // 같은 모델명이 이미 있으면 새로 추가하는 대신 덮어씁니다 — "혜택이 가장 좋은 상품코드 하나만
+  // 남긴다"는 운영 방식이 자연스럽게 지켜지도록 하기 위함입니다.
+  const { error } = await supabaseClient.from('product_benefits').upsert(payload, { onConflict: 'model_name' });
   if (error) { showSaveStatus('저장 실패: ' + error.message, 'err'); return; }
   resetBenefitForm();
   showSaveStatus('저장됨 ✓', 'ok');
@@ -319,7 +374,7 @@ async function deleteBenefit(b) {
   const { error } = await supabaseClient.from('product_benefits').delete().eq('id', b.id);
   if (error) { showSaveStatus('삭제 실패: ' + error.message, 'err'); return; }
   showSaveStatus('삭제됨 ✓', 'ok');
-  if (editingBenefitId === b.id) resetBenefitForm();
+  if (inlineEditingBenefitId === b.id) inlineEditingBenefitId = null;
   await loadProductBenefits();
 }
 

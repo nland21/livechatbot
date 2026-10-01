@@ -3,8 +3,8 @@
 // ============================================================
 
 // ------------------------------- 제품 스펙 관리 -------------------------------
-let editingSpecId = null;
 let parsedSpecImportRows = [];
+let inlineEditingSpecId = null; // 지금 카드 안에서 바로 수정 중인 모델 (상단 폼은 "새로 추가" 전용)
 
 async function loadProductSpecs() {
   const { data, error } = await supabaseClient
@@ -27,6 +27,14 @@ function renderSpecList() {
     const div = document.createElement('div');
     const enabled = spec.enabled !== false;
     div.style.cssText = `border:1px solid var(--border); border-radius:8px; padding:12px; margin-bottom:8px; display:flex; gap:10px; opacity:${enabled ? '1' : '0.5'};`;
+
+    if (inlineEditingSpecId === spec.id) {
+      div.style.opacity = '1';
+      renderInlineSpecEditForm(div, spec);
+      container.appendChild(div);
+      return;
+    }
+
     const specLine = [spec.os, spec.cpu, spec.resolution, spec.memory, spec.storage, spec.color].filter(Boolean).join(' · ');
     const extraKeys = spec.extra && typeof spec.extra === 'object' ? Object.keys(spec.extra) : [];
     const extraLine = extraKeys.map((k) => `${k}=${spec.extra[k]}`).join(', ');
@@ -165,30 +173,99 @@ function switchSpecMode(mode) {
   }
 }
 
+// "수정"을 누르면 상단 폼이 아니라, 그 카드 자체가 바로 입력 폼으로 바뀝니다
+// (스킬 관리 탭과 동일한 방식). 상단 폼은 이제 "새 모델 추가" 전용입니다.
 function startEditSpec(spec) {
-  editingSpecId = spec.id;
-  document.getElementById('specFormTitle').textContent = `"${spec.model_name}" 수정`;
-  document.getElementById('specModelName').value = spec.model_name || '';
-  document.getElementById('specOs').value = spec.os || '';
-  document.getElementById('specCpu').value = spec.cpu || '';
-  document.getElementById('specResolution').value = spec.resolution || '';
-  document.getElementById('specMemory').value = spec.memory || '';
-  document.getElementById('specStorage').value = spec.storage || '';
-  document.getElementById('specColor').value = spec.color || '';
-  document.getElementById('specExtra').value = spec.extra && Object.keys(spec.extra).length ? JSON.stringify(spec.extra, null, 2) : '';
-  document.getElementById('saveSpecBtn').textContent = '수정 저장';
-  document.getElementById('cancelSpecEditBtn').style.display = 'inline-block';
-  switchSpecMode('manual');
+  inlineEditingSpecId = spec.id;
+  renderSpecList();
 }
 
+function renderInlineSpecEditForm(container, spec) {
+  container.innerHTML = `
+    <div style="flex:1; min-width:0;">
+      <h3 style="margin:0 0 12px; font-size:14px;">✏️ "${escapeHtml(spec.model_name)}" 수정</h3>
+      <div class="row-2">
+        <div class="field"><label>모델명</label><input type="text" class="ie-spec-model" /></div>
+        <div class="field"><label>색상</label><input type="text" class="ie-spec-color" /></div>
+      </div>
+      <div class="row-2">
+        <div class="field"><label>운영체제</label><input type="text" class="ie-spec-os" /></div>
+        <div class="field"><label>CPU</label><input type="text" class="ie-spec-cpu" /></div>
+      </div>
+      <div class="row-2">
+        <div class="field"><label>해상도</label><input type="text" class="ie-spec-resolution" /></div>
+        <div class="field"><label>메모리</label><input type="text" class="ie-spec-memory" /></div>
+      </div>
+      <div class="field"><label>저장장치</label><input type="text" class="ie-spec-storage" /></div>
+      <div class="field"><label>기타 (JSON)</label><textarea class="ie-spec-extra" style="min-height:60px;font-family:monospace;font-size:11.5px;"></textarea></div>
+      <div style="display:flex; gap:8px;">
+        <button class="btn btn-primary ie-spec-save" style="flex:1;">수정 내용 저장</button>
+        <button class="btn btn-outline ie-spec-cancel">취소</button>
+      </div>
+    </div>`;
+
+  const els = {
+    model: container.querySelector('.ie-spec-model'),
+    color: container.querySelector('.ie-spec-color'),
+    os: container.querySelector('.ie-spec-os'),
+    cpu: container.querySelector('.ie-spec-cpu'),
+    resolution: container.querySelector('.ie-spec-resolution'),
+    memory: container.querySelector('.ie-spec-memory'),
+    storage: container.querySelector('.ie-spec-storage'),
+    extra: container.querySelector('.ie-spec-extra'),
+  };
+  els.model.value = spec.model_name || '';
+  els.color.value = spec.color || '';
+  els.os.value = spec.os || '';
+  els.cpu.value = spec.cpu || '';
+  els.resolution.value = spec.resolution || '';
+  els.memory.value = spec.memory || '';
+  els.storage.value = spec.storage || '';
+  els.extra.value = spec.extra && Object.keys(spec.extra).length ? JSON.stringify(spec.extra, null, 2) : '';
+
+  container.querySelector('.ie-spec-cancel').addEventListener('click', () => {
+    inlineEditingSpecId = null;
+    renderSpecList();
+  });
+  container.querySelector('.ie-spec-save').addEventListener('click', async () => {
+    const modelName = els.model.value.trim();
+    if (!modelName) { alert('모델명을 입력해주세요.'); return; }
+
+    let extra = {};
+    const extraRaw = els.extra.value.trim();
+    if (extraRaw) {
+      try {
+        extra = JSON.parse(extraRaw);
+        if (typeof extra !== 'object' || Array.isArray(extra) || extra === null) throw new Error('{"이름":"값"} 형태의 객체여야 합니다');
+      } catch (err) {
+        alert('기타 스펙(JSON) 형식이 올바르지 않습니다: ' + err.message);
+        return;
+      }
+    }
+
+    const payload = {
+      model_name: modelName,
+      os: els.os.value.trim() || null,
+      cpu: els.cpu.value.trim() || null,
+      resolution: els.resolution.value.trim() || null,
+      memory: els.memory.value.trim() || null,
+      storage: els.storage.value.trim() || null,
+      color: els.color.value.trim() || null,
+      extra,
+    };
+    const { error } = await supabaseClient.from('product_specs').update(payload).eq('id', spec.id);
+    if (error) { showSaveStatus('저장 실패: ' + error.message, 'err'); return; }
+    inlineEditingSpecId = null;
+    showSaveStatus('저장됨 ✓', 'ok');
+    await loadProductSpecs();
+  });
+}
+
+// 상단 폼은 이제 "새 모델 추가" 전용입니다 (기존 모델 수정은 카드 안에서 바로 합니다).
 function resetSpecForm() {
-  editingSpecId = null;
-  document.getElementById('specFormTitle').textContent = '+ 새 모델 추가';
   ['specModelName', 'specOs', 'specCpu', 'specResolution', 'specMemory', 'specStorage', 'specColor', 'specExtra'].forEach((id) => {
     document.getElementById(id).value = '';
   });
-  document.getElementById('saveSpecBtn').textContent = '모델 추가';
-  document.getElementById('cancelSpecEditBtn').style.display = 'none';
 }
 
 async function saveSpec() {
@@ -218,13 +295,8 @@ async function saveSpec() {
     extra,
   };
 
-  let error;
-  if (editingSpecId) {
-    ({ error } = await supabaseClient.from('product_specs').update(payload).eq('id', editingSpecId));
-  } else {
-    // 같은 모델명이 이미 있으면 새로 추가하는 대신 덮어씁니다(업서트) — 실수로 중복 등록되는 것을 방지합니다.
-    ({ error } = await supabaseClient.from('product_specs').upsert(payload, { onConflict: 'model_name' }));
-  }
+  // 같은 모델명이 이미 있으면 새로 추가하는 대신 덮어씁니다(업서트) — 실수로 중복 등록되는 것을 방지합니다.
+  const { error } = await supabaseClient.from('product_specs').upsert(payload, { onConflict: 'model_name' });
   if (error) { showSaveStatus('저장 실패: ' + error.message, 'err'); return; }
   resetSpecForm();
   showSaveStatus('저장됨 ✓', 'ok');
@@ -236,7 +308,7 @@ async function deleteSpec(spec) {
   const { error } = await supabaseClient.from('product_specs').delete().eq('id', spec.id);
   if (error) { showSaveStatus('삭제 실패: ' + error.message, 'err'); return; }
   showSaveStatus('삭제됨 ✓', 'ok');
-  if (editingSpecId === spec.id) resetSpecForm();
+  if (inlineEditingSpecId === spec.id) inlineEditingSpecId = null;
   await loadProductSpecs();
 }
 
