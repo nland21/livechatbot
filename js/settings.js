@@ -13,6 +13,7 @@ let broadcastSettings = {
   scheduled_interval_sec: 300, scheduled_mode: 'sequential', keyword_reply_interval_sec: 15,
   ai_role_instructions: '', ai_tone_guide: '',
   ai_model: 'claude-haiku-4-5-20251001', ai_min_interval_sec: 15, ai_max_calls_per_broadcast: 100, ai_per_nickname_cooldown_sec: 60,
+  ai_benefit_skill_enabled: true, ai_mixed_intent_notice_enabled: true,
 };
 
 async function loadAll() {
@@ -51,6 +52,10 @@ function renderBroadcastSettings() {
   if (minIntervalInput) minIntervalInput.value = broadcastSettings.ai_min_interval_sec ?? 15;
   if (maxCallsInput) maxCallsInput.value = broadcastSettings.ai_max_calls_per_broadcast ?? 100;
   if (cooldownInput) cooldownInput.value = broadcastSettings.ai_per_nickname_cooldown_sec ?? 60;
+  const benefitSkillToggle = document.getElementById('aiBenefitSkillToggle');
+  const mixedNoticeToggle = document.getElementById('aiMixedNoticeToggle');
+  if (benefitSkillToggle) benefitSkillToggle.checked = broadcastSettings.ai_benefit_skill_enabled !== false;
+  if (mixedNoticeToggle) mixedNoticeToggle.checked = broadcastSettings.ai_mixed_intent_notice_enabled !== false;
 }
 
 async function saveBroadcastSettings() {
@@ -137,7 +142,11 @@ async function saveAiNumericSettings() {
 
   const { error } = await supabaseClient
     .from('broadcast_settings')
-    .upsert({ id: 'default', ai_model, ai_min_interval_sec, ai_max_calls_per_broadcast, ai_per_nickname_cooldown_sec });
+    .upsert({
+      id: 'default', ai_model, ai_min_interval_sec, ai_max_calls_per_broadcast, ai_per_nickname_cooldown_sec,
+      ai_benefit_skill_enabled: document.getElementById('aiBenefitSkillToggle').checked,
+      ai_mixed_intent_notice_enabled: document.getElementById('aiMixedNoticeToggle').checked,
+    });
 
   if (error) { showSaveStatus('AI 세부 설정 저장 실패: ' + error.message, 'err'); return; }
   showSaveStatus('AI 세부 설정 저장됨 ✓', 'ok');
