@@ -241,21 +241,18 @@ function renderDeviceCards(devices) {
         <span class="device-row-label">예약 문구</span>
         <span class="device-row-value">
           ${statusValueHtml(scheduled)}
-          <button class="btn btn-outline btn-sm device-feature-toggle-btn" data-device="${escapeHtml(d.device_name)}" data-feature="scheduled" data-next="${d.scheduled_enabled ? 'false' : 'true'}">${d.scheduled_enabled ? '⚪ 끄기' : '🟢 켜기'}</button>
         </span>
       </div>
       <div class="device-row">
         <span class="device-row-label">키워드 채팅</span>
         <span class="device-row-value">
           ${statusValueHtml(keyword)}
-          <button class="btn btn-outline btn-sm device-feature-toggle-btn" data-device="${escapeHtml(d.device_name)}" data-feature="keyword" data-next="${d.keyword_enabled ? 'false' : 'true'}">${d.keyword_enabled ? '⚪ 끄기' : '🟢 켜기'}</button>
         </span>
       </div>
       <div class="device-row">
         <span class="device-row-label">AI스킬 채팅</span>
         <span class="device-row-value">
           ${statusValueHtml(ai)}${skillsNote ? `<span style="color:var(--sub);font-weight:400;">${escapeHtml(skillsNote)}</span>` : ''}
-          <button class="btn btn-outline btn-sm device-feature-toggle-btn" data-device="${escapeHtml(d.device_name)}" data-feature="ai" data-next="${d.ai_enabled ? 'false' : 'true'}">${d.ai_enabled ? '⚪ 끄기' : '🟢 켜기'}</button>
         </span>
       </div>
 
@@ -340,6 +337,8 @@ function renderDeviceCards(devices) {
   });
 }
 
+// (사용 안 함) 예전 PC별 켜기/끄기 요청 함수입니다. 이제 기능 켜기/끄기는 "모든 PC 공통" 스위치
+// (settings.js의 setGlobalSwitch)로 바뀌어서 화면에서 호출하지 않습니다.
 // 예약문구/키워드/AI스킬 채팅을 로컬PC 없이도 웹페이지에서 바로 켜고 끕니다.
 // 로컬PC 옵션 페이지의 토글과 같은 값(scheduledEnabled/keywordEnabled/aiEnabled)을
 // 원격으로 바꾸는 것이라, 로컬PC에서 다시 꺼거나 켜면 그 값이 우선합니다(양쪽 다 조작 가능).

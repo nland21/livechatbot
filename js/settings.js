@@ -14,7 +14,66 @@ let broadcastSettings = {
   ai_role_instructions: '', ai_tone_guide: '',
   ai_model: 'claude-haiku-4-5-20251001', ai_min_interval_sec: 15, ai_max_calls_per_broadcast: 100, ai_per_nickname_cooldown_sec: 60,
   ai_benefit_skill_enabled: true, ai_mixed_intent_notice_enabled: true,
+  feature_ai_enabled: true, feature_scheduled_enabled: true, feature_keyword_enabled: true,
+  feature_next_live_enabled: false, ai_skills_enabled: true, ai_spec_enabled: true,
 };
+
+// ============================================================
+//  기능 ON/OFF 스위치 (모든 PC 공통)
+//  화면 곳곳의 data-global-switch="컬럼명" 체크박스가 모두 같은 값을 보여주고,
+//  누르는 즉시 서버에 저장됩니다. 로컬 PC는 약 20초~1분 안에 이 값을 따릅니다.
+// ============================================================
+const GLOBAL_SWITCH_LABELS = {
+  feature_ai_enabled: '🤖 AI 자동답변',
+  feature_scheduled_enabled: '📝 예약 문구',
+  feature_keyword_enabled: '💬 키워드 자동답변',
+  ai_skills_enabled: '🧩 스킬 적용',
+  feature_next_live_enabled: '🔁 다음 라이브 이동',
+  ai_spec_enabled: '💻 제품 스펙',
+  ai_benefit_skill_enabled: '🎁 상품 혜택',
+};
+const GLOBAL_SWITCH_DEFAULTS = { feature_next_live_enabled: false };
+
+function isGlobalSwitchOn(column) {
+  const v = broadcastSettings[column];
+  if (v === undefined || v === null) return GLOBAL_SWITCH_DEFAULTS[column] ?? true;
+  return !!v;
+}
+
+function renderGlobalSwitches() {
+  document.querySelectorAll('[data-global-switch]').forEach((cb) => {
+    const on = isGlobalSwitchOn(cb.dataset.globalSwitch);
+    cb.checked = on;
+    const wrap = cb.closest('.gsw');
+    if (wrap) {
+      wrap.classList.toggle('on', on);
+      const stateEl = wrap.querySelector('.gsw-state');
+      if (stateEl) stateEl.textContent = on ? '켜짐' : '꺼짐';
+    }
+  });
+}
+
+async function setGlobalSwitch(column, value) {
+  const label = GLOBAL_SWITCH_LABELS[column] || column;
+  const { error } = await supabaseClient
+    .from('broadcast_settings')
+    .upsert({ id: 'default', [column]: value });
+  if (error) {
+    const hint = /column/i.test(error.message) ? ' (Supabase SQL Editor에서 새 스위치 SQL을 먼저 실행해주세요)' : '';
+    showSaveStatus(`${label} ${value ? '켜기' : '끄기'} 실패: ${error.message}${hint}`, 'err');
+    renderGlobalSwitches(); // 실패하면 원래 상태로 되돌려 보여줍니다
+    return;
+  }
+  broadcastSettings[column] = value;
+  renderGlobalSwitches();
+  showSaveStatus(`${label} ${value ? '🟢 켜짐' : '⚪ 꺼짐'} 저장됨 ✓ (모든 PC에 약 20초~1분 안에 반영)`, 'ok');
+}
+
+function bindGlobalSwitches() {
+  document.querySelectorAll('[data-global-switch]').forEach((cb) => {
+    cb.addEventListener('change', () => setGlobalSwitch(cb.dataset.globalSwitch, cb.checked));
+  });
+}
 
 async function loadAll() {
   await Promise.all([loadBroadcastSettings(), loadScheduled(), loadKeywords(), loadSkills(), loadLiveSchedule(), loadProductSpecs(), loadProductBenefits()]);
@@ -52,9 +111,8 @@ function renderBroadcastSettings() {
   if (minIntervalInput) minIntervalInput.value = broadcastSettings.ai_min_interval_sec ?? 15;
   if (maxCallsInput) maxCallsInput.value = broadcastSettings.ai_max_calls_per_broadcast ?? 100;
   if (cooldownInput) cooldownInput.value = broadcastSettings.ai_per_nickname_cooldown_sec ?? 60;
-  const benefitSkillToggle = document.getElementById('aiBenefitSkillToggle');
+  renderGlobalSwitches();
   const mixedNoticeToggle = document.getElementById('aiMixedNoticeToggle');
-  if (benefitSkillToggle) benefitSkillToggle.checked = broadcastSettings.ai_benefit_skill_enabled !== false;
   if (mixedNoticeToggle) mixedNoticeToggle.checked = broadcastSettings.ai_mixed_intent_notice_enabled !== false;
 }
 
@@ -144,7 +202,6 @@ async function saveAiNumericSettings() {
     .from('broadcast_settings')
     .upsert({
       id: 'default', ai_model, ai_min_interval_sec, ai_max_calls_per_broadcast, ai_per_nickname_cooldown_sec,
-      ai_benefit_skill_enabled: document.getElementById('aiBenefitSkillToggle').checked,
       ai_mixed_intent_notice_enabled: document.getElementById('aiMixedNoticeToggle').checked,
     });
 

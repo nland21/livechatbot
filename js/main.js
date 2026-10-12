@@ -45,6 +45,7 @@ function bindEvents() {
   document.getElementById('saveAiGuideBtn').addEventListener('click', saveAiGuideSettings);
   document.getElementById('saveApiKeyBtn').addEventListener('click', saveApiKey);
   document.getElementById('saveAiSettingsBtn').addEventListener('click', saveAiNumericSettings);
+  bindGlobalSwitches(); // 기능 ON/OFF 스위치 (모든 PC 공통, 누르면 즉시 저장)
   document.getElementById('addScheduledBtn').addEventListener('click', addScheduledMessage);
   document.getElementById('scheduledEditModeBtn').addEventListener('click', enterScheduledEditMode);
   document.getElementById('scheduledCancelEditBtn').addEventListener('click', () => {
