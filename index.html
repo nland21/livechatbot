@@ -437,6 +437,59 @@
         transform: translateX(16px);
       }
 
+      /* 기능 ON/OFF 스위치 (모든 PC 공통) */
+      h2.has-switch {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .global-switches {
+        margin-left: auto;
+        display: inline-flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .gsw {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 12px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        background: #fff;
+        font-size: 12.5px;
+        font-weight: 700;
+        cursor: pointer;
+        user-select: none;
+      }
+      .gsw .gsw-state {
+        font-size: 11.5px;
+        font-weight: 800;
+        color: #9aa0a8;
+        min-width: 30px;
+      }
+      .gsw.on {
+        border-color: var(--brand);
+        background: #f0fbf5;
+      }
+      .gsw.on .gsw-state {
+        color: var(--brand-dark, #02a94d);
+      }
+      .gsw-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        gap: 8px;
+      }
+      .gsw-grid .gsw .switch {
+        margin-left: auto;
+      }
+      .gsw-grid .gsw {
+        border-radius: 10px;
+        justify-content: space-between;
+        padding: 10px 12px;
+      }
+
       ul.item-list {
         list-style: none;
         margin: 0;
@@ -1006,7 +1059,7 @@
               </button>
               <div>
                 이 페이지에서 저장하면 사무실 PC의 확장 프로그램에 최대 1분
-                안에 자동 반영됩니다.
+                안에 자동 반영됩니다. (기능 스위치는 약 20초)
               </div>
             </div>
             <div style="display: flex; align-items: center; gap: 10px">
@@ -1017,7 +1070,7 @@
           <main class="content">
             <!-- 예약 문구 -->
             <section id="tab-scheduled" class="tab-panel active">
-              <h2>예약 문구 자동 게시</h2>
+              <h2 class="has-switch">예약 문구 자동 게시<span class="global-switches"><label class="gsw" title="모든 PC에 공통 적용됩니다">📝 예약 문구<span class="switch"><input type="checkbox" data-global-switch="feature_scheduled_enabled" /><span class="slider"></span></span><span class="gsw-state">-</span></label></span></h2>
               <p class="page-desc">
                 등록한 문구를 확장 프로그램이 정해진 간격으로 반복 게시합니다.
               </p>
@@ -1107,7 +1160,7 @@
 
             <!-- 키워드 자동답변 -->
             <section id="tab-keyword" class="tab-panel">
-              <h2>키워드 자동 답변</h2>
+              <h2 class="has-switch">키워드 자동 답변<span class="global-switches"><label class="gsw" title="모든 PC에 공통 적용됩니다">💬 키워드 자동답변<span class="switch"><input type="checkbox" data-global-switch="feature_keyword_enabled" /><span class="slider"></span></span><span class="gsw-state">-</span></label></span></h2>
               <p class="page-desc">
                 키워드가 많을수록(쉼표로 구분) 더 구체적인 규칙으로 인식되어
                 먼저 검사됩니다.
@@ -1169,7 +1222,7 @@
 
             <!-- 스킬 관리 -->
             <section id="tab-skills" class="tab-panel">
-              <h2>스킬 관리</h2>
+              <h2 class="has-switch">스킬 관리<span class="global-switches"><label class="gsw" title="모든 PC에 공통 적용됩니다">🤖 AI 자동답변<span class="switch"><input type="checkbox" data-global-switch="feature_ai_enabled" /><span class="slider"></span></span><span class="gsw-state">-</span></label><label class="gsw" title="모든 PC에 공통 적용됩니다">🧩 스킬 적용<span class="switch"><input type="checkbox" data-global-switch="ai_skills_enabled" /><span class="slider"></span></span><span class="gsw-state">-</span></label></span></h2>
               <p class="page-desc">
                 AI 자동 답변이 참고할 주제별 지식입니다. 트리거 키워드를
                 비워두면 항상 포함되는 기본 스킬이 됩니다.
@@ -1256,15 +1309,6 @@
                   </div>
                 </div>
                 <div class="field" style="margin-top: 14px">
-                  <label style="display: flex; align-items: center; gap: 8px; cursor: pointer">
-                    <input type="checkbox" id="aiBenefitSkillToggle" checked style="width: auto" />
-                    🎁 상품 혜택 스킬 적용
-                  </label>
-                  <p class="hint" style="margin-top: 4px; margin-bottom: 0">
-                    끄면 상품 혜택 기능 전체가 꺼지고, 혜택 기능이 생기기 전처럼 스펙 방식으로만 답합니다.
-                  </p>
-                </div>
-                <div class="field">
                   <label style="display: flex; align-items: center; gap: 8px; cursor: pointer">
                     <input type="checkbox" id="aiMixedNoticeToggle" checked style="width: auto" />
                     🔀 혜택/스펙 동시 질문 안내 문구 보내기
@@ -1486,7 +1530,7 @@
 
             <!-- 제품 스펙 -->
             <section id="tab-specs" class="tab-panel">
-              <h2>제품 스펙 관리</h2>
+              <h2 class="has-switch">제품 스펙 관리<span class="global-switches"><label class="gsw" title="모든 PC에 공통 적용됩니다">💻 제품 스펙<span class="switch"><input type="checkbox" data-global-switch="ai_spec_enabled" /><span class="slider"></span></span><span class="gsw-state">-</span></label></span></h2>
               <p class="page-desc">
                 모델별 스펙을 저장해두면, AI 자동답변이 질문에 언급된 모델명을
                 알아보고 정확한 스펙으로 답변합니다. (스펙 질문은 여기 저장된
@@ -1700,7 +1744,7 @@
 
             <!-- 상품 혜택 -->
             <section id="tab-benefits" class="tab-panel">
-              <h2>상품 혜택 관리</h2>
+              <h2 class="has-switch">상품 혜택 관리<span class="global-switches"><label class="gsw" title="모든 PC에 공통 적용됩니다">🎁 상품 혜택<span class="switch"><input type="checkbox" data-global-switch="ai_benefit_skill_enabled" /><span class="slider"></span></span><span class="gsw-state">-</span></label></span></h2>
               <p class="page-desc">
                 모델별 쿠폰·카드할인·적립·사은품 정보를 등록해두면, AI가
                 채팅에서 모델명이 언급됐을 때만 정확한 혜택으로 답변합니다
@@ -1880,7 +1924,7 @@
 
             <!-- 다음 라이브 이동 -->
             <section id="tab-nextlive" class="tab-panel">
-              <h2>다음 라이브 예약 시간표</h2>
+              <h2 class="has-switch">다음 라이브 예약 시간표<span class="global-switches"><label class="gsw" title="모든 PC에 공통 적용됩니다">🔁 다음 라이브 이동<span class="switch"><input type="checkbox" data-global-switch="feature_next_live_enabled" /><span class="slider"></span></span><span class="gsw-state">-</span></label></span></h2>
               <p class="page-desc">
                 방식 B(예약 시간표)로 설정된 확장 프로그램이 이 시간표를 그대로
                 사용합니다.
@@ -1984,6 +2028,17 @@
                 <button class="btn btn-outline btn-sm" id="refreshDevicesBtn">
                   🔄 연결상태 새로고침
                 </button>
+              </div>
+
+              <div class="card">
+                <h3>⚙️ 기능 켜기/끄기 (모든 PC 공통)</h3>
+                <p class="hint" style="margin-top: -4px">
+                  스위치를 누르면 바로 저장되고, 모든 로컬 PC에 약 20초~1분 안에 반영됩니다.
+                  로컬 PC에서는 상태만 보이고 바꿀 수 없습니다 (로컬 PC에는 비상 정지 버튼만 있습니다).
+                </p>
+                <div class="gsw-grid">
+                  <label class="gsw" title="모든 PC에 공통 적용됩니다">🤖 AI 자동답변<span class="switch"><input type="checkbox" data-global-switch="feature_ai_enabled" /><span class="slider"></span></span><span class="gsw-state">-</span></label><label class="gsw" title="모든 PC에 공통 적용됩니다">📝 예약 문구<span class="switch"><input type="checkbox" data-global-switch="feature_scheduled_enabled" /><span class="slider"></span></span><span class="gsw-state">-</span></label><label class="gsw" title="모든 PC에 공통 적용됩니다">💬 키워드 자동답변<span class="switch"><input type="checkbox" data-global-switch="feature_keyword_enabled" /><span class="slider"></span></span><span class="gsw-state">-</span></label><label class="gsw" title="모든 PC에 공통 적용됩니다">🧩 스킬 적용<span class="switch"><input type="checkbox" data-global-switch="ai_skills_enabled" /><span class="slider"></span></span><span class="gsw-state">-</span></label><label class="gsw" title="모든 PC에 공통 적용됩니다">🔁 다음 라이브 이동<span class="switch"><input type="checkbox" data-global-switch="feature_next_live_enabled" /><span class="slider"></span></span><span class="gsw-state">-</span></label><label class="gsw" title="모든 PC에 공통 적용됩니다">💻 제품 스펙<span class="switch"><input type="checkbox" data-global-switch="ai_spec_enabled" /><span class="slider"></span></span><span class="gsw-state">-</span></label><label class="gsw" title="모든 PC에 공통 적용됩니다">🎁 상품 혜택<span class="switch"><input type="checkbox" data-global-switch="ai_benefit_skill_enabled" /><span class="slider"></span></span><span class="gsw-state">-</span></label>
+                </div>
               </div>
 
               <div id="deviceCardList"></div>
