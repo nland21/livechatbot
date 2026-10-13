@@ -139,6 +139,50 @@ function botStatusOf(d) {
   return { emoji: '⚪', text: '정보 없음', cls: 'off' };
 }
 
+// ------------------------------- 스위치 적용 점검 -------------------------------
+// 관리자 웹페이지 스위치(모든 PC 공통)와 이 PC가 "실제로" 쓰고 있는 값을 비교해서, 다르면 경고합니다.
+// 또 PC에서 돌고 있는 확장 프로그램 버전과 마지막 동기화 결과를 보여줘서, 옛 버전이 설치돼 있거나
+// 동기화가 실패한 PC를 바로 찾아낼 수 있게 합니다.
+const MIN_EXT_VERSION = '6.7.0';
+function compareVersion(a, b) {
+  const pa = String(a || '0').split('.').map(Number);
+  const pb = String(b || '0').split('.').map(Number);
+  for (let i = 0; i < 3; i++) {
+    const d = (pa[i] || 0) - (pb[i] || 0);
+    if (d !== 0) return d;
+  }
+  return 0;
+}
+function switchDiagHtml(d, stale) {
+  const rows = [];
+  const versionOk = d.ext_version && compareVersion(d.ext_version, MIN_EXT_VERSION) >= 0;
+  rows.push(`<div class="device-row"><span class="device-row-label">확장 프로그램 버전</span>` +
+    (versionOk
+      ? `<span class="status-value ok">🟢 ${escapeHtml(d.ext_version)}</span>`
+      : `<span class="status-value err">🔴 ${d.ext_version ? escapeHtml(d.ext_version) + ' (옛 버전)' : '확인 불가 (옛 버전)'} · ${MIN_EXT_VERSION} 이상으로 교체 필요</span>`) +
+    `</div>`);
+  if (d.last_sync_at || d.sync_error) {
+    rows.push(`<div class="device-row"><span class="device-row-label">마지막 동기화</span>` +
+      (d.sync_error
+        ? `<span class="status-value err">🔴 ${escapeHtml(String(d.sync_error).slice(0, 60))}</span>`
+        : `<span class="status-value ok">🟢 ${escapeHtml(formatRelativeTime(d.last_sync_at))}</span>`) +
+      `</div>`);
+  }
+  if (!stale && typeof isGlobalSwitchOn === 'function') {
+    const pairs = [
+      ['AI 자동답변', d.ai_enabled, isGlobalSwitchOn('feature_ai_enabled')],
+      ['예약 문구', d.scheduled_enabled, isGlobalSwitchOn('feature_scheduled_enabled')],
+      ['키워드 자동답변', d.keyword_enabled, isGlobalSwitchOn('feature_keyword_enabled')],
+    ];
+    const mismatched = pairs.filter(([, actual, expected]) => actual !== null && actual !== undefined && !!actual !== expected);
+    if (mismatched.length > 0) {
+      const list = mismatched.map(([label, actual, expected]) => `${label}(PC: ${actual ? '켜짐' : '꺼짐'} / 설정: ${expected ? '켜짐' : '꺼짐'})`).join(', ');
+      rows.push(`<div style="background:#fff1f0;border:1px solid #f5c2bd;border-radius:8px;padding:8px 10px;margin:6px 0;font-size:12px;line-height:1.6;color:#d93025;"><b>⚠️ 스위치 불일치</b> — ${escapeHtml(list)}<br/><span style="color:#8a4b45;">약 20초 뒤에도 계속되면 이 PC의 확장 프로그램 버전·중복 설치를 확인하세요</span></div>`);
+    }
+  }
+  return rows.join('');
+}
+
 function statusValueHtml(status) {
   return `<span class="status-value ${status.cls}">${status.emoji} ${escapeHtml(status.text)}</span>`;
 }
@@ -255,6 +299,7 @@ function renderDeviceCards(devices) {
           ${statusValueHtml(ai)}${skillsNote ? `<span style="color:var(--sub);font-weight:400;">${escapeHtml(skillsNote)}</span>` : ''}
         </span>
       </div>
+      ${switchDiagHtml(d, stale)}
 
       <hr class="device-row-divider" />
 
